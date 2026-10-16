@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -7,11 +7,13 @@ import { runCli } from "../src/cli.ts";
 
 async function withCli() {
   const dataDir = await mkdtemp(path.join(tmpdir(), "jarvis-cli-"));
+  const transcriptsDir = await mkdtemp(path.join(tmpdir(), "jarvis-cli-tr-"));
   const stdout: string[] = [];
   const stderr: string[] = [];
   const run = async (argv: string[]) => {
     const code = await runCli(argv, {
       dataDir,
+      transcriptsDir,
       stdout: (line) => stdout.push(line),
       stderr: (line) => stderr.push(line),
     });
@@ -19,8 +21,10 @@ async function withCli() {
   };
   return {
     run,
+    transcriptsDir,
     async cleanup() {
       await rm(dataDir, { recursive: true, force: true });
+      await rm(transcriptsDir, { recursive: true, force: true });
     },
   };
 }
@@ -98,6 +102,43 @@ test("CLI run completes a task and writes log lines", async () => {
     assert.equal(log.code, 0);
     assert.ok(log.stdout.some((line) => line.includes("gestartet")));
     assert.ok(log.stdout.some((line) => line.includes("erledigt")));
+  } finally {
+    await cleanup();
+  }
+});
+
+test("CLI lists and shows a transcript", async () => {
+  const { run, transcriptsDir, cleanup } = await withCli();
+  try {
+    await writeFile(
+      path.join(transcriptsDir, "2026-10-16.md"),
+      [
+        "# Gesprächsprotokoll Levin und Jarvis, Freitag, 16.10.2026",
+        "",
+        "| Uhrzeit | Sprecher | Text |",
+        "|---|---|---|",
+        "| 14:45 | Jarvis | Prompt für den Telegram-Bot geschrieben. |",
+        "| 14:58 | Levin | Task-Modul gebaut. |",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const listed = await run(["transcripts"]);
+    assert.equal(listed.code, 0);
+    assert.match(
+      listed.stdout[0] ?? "",
+      /2026-10-16  Gesprächsprotokoll Levin und Jarvis, Freitag, 16.10.2026  \(2\)/,
+    );
+
+    const shown = await run(["transcript", "2026-10-16"]);
+    assert.equal(shown.code, 0);
+    assert.match(shown.stdout.join("\n"), /14:45  Jarvis  Prompt für den Telegram-Bot geschrieben\./);
+    assert.match(shown.stdout.join("\n"), /14:58  Levin  Task-Modul gebaut\./);
+
+    const missing = await run(["transcript", "fehlt"]);
+    assert.equal(missing.code, 1);
+    assert.match(missing.stderr.join("\n"), /Transkript nicht gefunden: fehlt/);
   } finally {
     await cleanup();
   }

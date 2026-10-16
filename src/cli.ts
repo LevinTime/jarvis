@@ -6,9 +6,14 @@ import {
   type Task,
   type TaskLogEntry,
 } from "./tasks/service.ts";
+import {
+  createTranscriptService,
+  type Transcript,
+} from "./transcripts/service.ts";
 
 export type CliIo = {
   dataDir?: string;
+  transcriptsDir?: string;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
 };
@@ -48,7 +53,21 @@ function usage(): string {
     "  run <id>",
     "  reset <id>",
     "  log [id]",
+    "  transcripts",
+    "  transcript <id>",
   ].join("\n");
+}
+
+function formatTranscriptListItem(transcript: Transcript): string {
+  return `${transcript.id}  ${transcript.title}  (${transcript.entries.length})`;
+}
+
+function formatTranscript(transcript: Transcript): string {
+  const lines = [transcript.title, ""];
+  for (const entry of transcript.entries) {
+    lines.push(`${entry.uhrzeit}  ${entry.sprecher}  ${entry.text}`);
+  }
+  return lines.join("\n").trimEnd();
 }
 
 function failMessage(error: unknown): string {
@@ -88,10 +107,16 @@ export async function runCli(
   const err = io.stderr ?? ((line: string) => console.error(line));
   const dataDir =
     io.dataDir ?? process.env.JARVIS_DATA_DIR ?? path.resolve("data");
+  const transcriptsDir =
+    io.transcriptsDir ??
+    process.env.JARVIS_TRANSCRIPTS_DIR ??
+    path.resolve("transcripts");
   const service = createTaskService({ dataDir });
+  const transcripts = createTranscriptService({ transcriptsDir });
 
   try {
     await service.recoverStale();
+    await transcripts.list();
 
     if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
       out(usage());
@@ -178,6 +203,28 @@ export async function runCli(
       for (const entry of entries) {
         out(formatLog(entry));
       }
+      return 0;
+    }
+
+    if (command === "transcripts") {
+      const listed = await transcripts.list();
+      if (listed.length === 0) {
+        out("keine transkripte");
+        return 0;
+      }
+      for (const item of listed) {
+        out(formatTranscriptListItem(item));
+      }
+      return 0;
+    }
+
+    if (command === "transcript") {
+      const id = rest[0];
+      if (!id) {
+        err("transcript braucht eine id");
+        return 1;
+      }
+      out(formatTranscript(await transcripts.get(id)));
       return 0;
     }
 

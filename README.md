@@ -8,21 +8,24 @@ macht daraus Aufgaben, Termine und Erinnerungen.
 ## Vorhanden
 - Task-Modul: anlegen, abfragen, abarbeiten
 - Status: `offen` → `in Arbeit` → `erledigt` (oder `fehlgeschlagen`)
+- Transkript-Zugriff: Markdown-Protokolle aus `transcripts/`
 - CLI unter `src/cli.ts`
 
 ## Geplant
 - Chat über Telegram und eine Web-Oberfläche
-- Call-Transkripte im Chat-Kontext
+- Transkripte in den Chat-Kontext ziehen
 - Wetter und Erinnerungen für Issum
 - Lokal mit Ollama oder über eine Cloud-API (Grok/xAI)
 
 ## Struktur
-- `src/cli.ts`       Task-CLI
-- `src/tasks/`       Task-Logik (Store, Status, Log)
-- `prompts/`         System-Prompts
-- `skills/`          Fähigkeiten (Wetter, Kalender, …)
-- `config/`          `.env.example` (Keys, noch nicht von der CLI gelesen)
-- `data/`            lokale Tasks und Logs (gitignored)
+- `src/cli.ts`          CLI (Tasks + Transkripte)
+- `src/tasks/`          Task-Logik (Store, Status, Log)
+- `src/transcripts/`    Gesprächsprotokolle lesen und parsen
+- `transcripts/`        Markdown-Protokolle
+- `prompts/`            System-Prompts
+- `skills/`             Fähigkeiten (Wetter, Kalender, …)
+- `config/`             `.env.example` (Keys, noch nicht von der CLI gelesen)
+- `data/`               lokale Tasks und Logs (gitignored)
 
 ## Starten
 
@@ -48,6 +51,8 @@ npm run jarvis -- get pool
 npm run jarvis -- run pool
 npm run jarvis -- reset pool
 npm run jarvis -- log
+npm run jarvis -- transcripts
+npm run jarvis -- transcript 2026-10-16
 ```
 
 ```powershell
