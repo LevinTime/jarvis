@@ -2,8 +2,6 @@ import { parseArgs } from "node:util";
 import path from "node:path";
 import {
   createTaskService,
-  TaskConflictError,
-  TaskNotFoundError,
   TaskValidationError,
   type Task,
   type TaskLogEntry,
@@ -44,6 +42,7 @@ function usage(): string {
     "Jarvis Task-CLI",
     "",
     "  add --titel <text> --aufgabe <text> [--id <id>]",
+    "  add --json <objekt>",
     "  get <id>",
     "  list",
     "  run <id>",
@@ -52,17 +51,32 @@ function usage(): string {
 }
 
 function failMessage(error: unknown): string {
-  if (
-    error instanceof TaskNotFoundError ||
-    error instanceof TaskConflictError ||
-    error instanceof TaskValidationError
-  ) {
-    return error.message;
-  }
   if (error instanceof Error) {
     return error.message;
   }
   return String(error);
+}
+
+function jsonObject(raw: string): {
+  id?: string;
+  titel?: string;
+  aufgabe?: string;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new TaskValidationError("JSON ungültig");
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new TaskValidationError("JSON muss ein Objekt mit titel und aufgabe sein");
+  }
+  const record = parsed as Record<string, unknown>;
+  return {
+    id: typeof record.id === "string" ? record.id : undefined,
+    titel: typeof record.titel === "string" ? record.titel : undefined,
+    aufgabe: typeof record.aufgabe === "string" ? record.aufgabe : undefined,
+  };
 }
 
 export async function runCli(
@@ -95,13 +109,7 @@ export async function runCli(
         },
         allowPositionals: false,
       });
-      const fromJson = parsed.values.json
-        ? (JSON.parse(parsed.values.json) as {
-            id?: string;
-            titel?: string;
-            aufgabe?: string;
-          })
-        : {};
+      const fromJson = parsed.values.json ? jsonObject(parsed.values.json) : {};
       const task = await service.create({
         id: parsed.values.id ?? fromJson.id,
         titel: parsed.values.titel ?? fromJson.titel ?? "",

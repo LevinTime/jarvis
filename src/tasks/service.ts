@@ -22,7 +22,6 @@ export type TaskInput = {
   id?: string;
   titel: string;
   aufgabe: string;
-  status?: TaskStatus;
 };
 
 export type TaskLogEntry = {
@@ -73,6 +72,10 @@ type TaskServiceOptions = {
 
 const RUNNABLE = new Set<TaskStatus>(["offen", "fehlgeschlagen"]);
 
+function isNotFound(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
 function requiredText(value: string | undefined, field: string): string {
   const text = value?.trim() ?? "";
   if (!text) {
@@ -96,9 +99,13 @@ export function createTaskService(options: TaskServiceOptions) {
   async function loadTasks(): Promise<Task[]> {
     try {
       const raw = await readFile(tasksFile, "utf8");
-      return JSON.parse(raw) as Task[];
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        throw new Error("tasks.json ist kein Array");
+      }
+      return parsed as Task[];
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      if (isNotFound(error)) {
         return [];
       }
       throw error;
@@ -236,7 +243,7 @@ export function createTaskService(options: TaskServiceOptions) {
     try {
       raw = await readFile(logFile, "utf8");
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      if (isNotFound(error)) {
         return [];
       }
       throw error;
@@ -245,7 +252,13 @@ export function createTaskService(options: TaskServiceOptions) {
     return raw
       .split("\n")
       .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line) as TaskLogEntry)
+      .map((line, index) => {
+        try {
+          return JSON.parse(line) as TaskLogEntry;
+        } catch {
+          throw new Error(`task-log.jsonl Zeile ${index + 1} ist ungültig`);
+        }
+      })
       .filter((entry) => (taskId ? entry.taskId === taskId : true));
   }
 

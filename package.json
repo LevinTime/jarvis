@@ -8,7 +8,7 @@
   },
   "scripts": {
     "jarvis": "tsx src/cli.ts",
-    "test": "tsx --test tests/tasks.test.ts tests/cli.test.ts",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
