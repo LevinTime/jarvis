@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -199,6 +199,86 @@ test("a fehlgeschlagener task can be retried", async () => {
     assert.equal(done.status, "erledigt");
     assert.equal(done.result, "ok");
     assert.equal(done.error, undefined);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("recoverStale fails tasks in Arbeit longer than max age and they can run again", async () => {
+  const { service, dataDir, cleanup } = await withService();
+  try {
+    const created = await service.create({
+      id: "stale",
+      titel: "Whirlpool",
+      aufgabe: "putzen",
+    });
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    await writeFile(
+      path.join(dataDir, "tasks.json"),
+      `${JSON.stringify(
+        [
+          {
+            ...created,
+            status: "in Arbeit",
+            startedAt: hourAgo,
+            updatedAt: hourAgo,
+          },
+        ],
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const recovered = await service.recoverStale();
+    assert.equal(recovered.length, 1);
+    assert.equal(recovered[0]?.status, "fehlgeschlagen");
+    assert.equal(recovered[0]?.error, "abgebrochen");
+    assert.equal((await service.get(created.id)).status, "fehlgeschlagen");
+
+    const log = await service.log(created.id);
+    assert.equal(log.at(-1)?.event, "fehlgeschlagen");
+    assert.equal(log.at(-1)?.error, "abgebrochen");
+
+    const done = await service.run(created.id);
+    assert.equal(done.status, "erledigt");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("reset sets a hanging in-Arbeit task back to offen", async () => {
+  const { service, dataDir, cleanup } = await withService();
+  try {
+    const created = await service.create({
+      id: "hang",
+      titel: "Hühner füttern",
+      aufgabe: "abends füttern",
+    });
+    const startedAt = new Date().toISOString();
+    await writeFile(
+      path.join(dataDir, "tasks.json"),
+      `${JSON.stringify(
+        [
+          {
+            ...created,
+            status: "in Arbeit",
+            startedAt,
+            updatedAt: startedAt,
+          },
+        ],
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const reset = await service.reset(created.id);
+    assert.equal(reset.status, "offen");
+    await assert.rejects(() => service.reset(created.id), TaskConflictError);
+
+    const done = await service.run(created.id);
+    assert.equal(done.status, "erledigt");
   } finally {
     await cleanup();
   }

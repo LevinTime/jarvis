@@ -46,6 +46,7 @@ function usage(): string {
     "  get <id>",
     "  list",
     "  run <id>",
+    "  reset <id>",
     "  log [id]",
   ].join("\n");
 }
@@ -89,15 +90,16 @@ export async function runCli(
     io.dataDir ?? process.env.JARVIS_DATA_DIR ?? path.resolve("data");
   const service = createTaskService({ dataDir });
 
-  if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
-    out(usage());
-    return 0;
-  }
-
-  const command = argv[0];
-  const rest = argv.slice(1);
-
   try {
+    await service.recoverStale();
+
+    if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
+      out(usage());
+      return 0;
+    }
+
+    const command = argv[0];
+    const rest = argv.slice(1);
     if (command === "add") {
       const parsed = parseArgs({
         args: rest,
@@ -153,6 +155,17 @@ export async function runCli(
         return 1;
       }
       out(`erledigt  ${task.id}  ${task.result ?? task.titel}`);
+      return 0;
+    }
+
+    if (command === "reset") {
+      const id = rest[0];
+      if (!id) {
+        err("reset braucht eine id");
+        return 1;
+      }
+      const task = await service.reset(id);
+      out(`offen  ${task.id}  ${task.titel}`);
       return 0;
     }
 

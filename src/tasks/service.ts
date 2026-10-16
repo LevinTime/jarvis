@@ -27,7 +27,7 @@ export type TaskInput = {
 export type TaskLogEntry = {
   at: string;
   taskId: string;
-  event: "gestartet" | "erledigt" | "fehlgeschlagen";
+  event: "gestartet" | "erledigt" | "fehlgeschlagen" | "zurückgesetzt";
   status: TaskStatus;
   message?: string;
   error?: string;
@@ -49,8 +49,8 @@ export class TaskConflictError extends Error {
   readonly taskId: string;
   readonly status: TaskStatus;
 
-  constructor(taskId: string, status: TaskStatus) {
-    super(`Task ${taskId} kann nicht gestartet werden (Status: ${status})`);
+  constructor(taskId: string, status: TaskStatus, action = "gestartet") {
+    super(`Task ${taskId} kann nicht ${action} werden (Status: ${status})`);
     this.name = "TaskConflictError";
     this.taskId = taskId;
     this.status = status;
@@ -82,6 +82,10 @@ function requiredText(value: string | undefined, field: string): string {
     throw new TaskValidationError(`${field} darf nicht leer sein`);
   }
   return text;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function createTaskService(options: TaskServiceOptions) {
@@ -172,6 +176,39 @@ export function createTaskService(options: TaskServiceOptions) {
     return loadTasks();
   }
 
+  async function persistStatus(
+    task: Task,
+    entry: TaskLogEntry,
+  ): Promise<Task> {
+    await saveTask(task);
+    try {
+      await appendLog(entry);
+    } catch {
+      // Status ist schon terminal gespeichert.
+    }
+    return task;
+  }
+
+  async function markFailed(started: Task, message: string): Promise<Task> {
+    const failedAt = nowIso();
+    return persistStatus(
+      {
+        ...started,
+        status: "fehlgeschlagen",
+        updatedAt: failedAt,
+        failedAt,
+        error: message,
+      },
+      {
+        at: failedAt,
+        taskId: started.id,
+        event: "fehlgeschlagen",
+        status: "fehlgeschlagen",
+        error: message,
+      },
+    );
+  }
+
   async function run(id: string): Promise<Task> {
     const current = await get(id);
     if (!RUNNABLE.has(current.status)) {
@@ -190,52 +227,93 @@ export function createTaskService(options: TaskServiceOptions) {
       completedAt: undefined,
     };
     await saveTask(started);
-    await appendLog({
-      at: startedAt,
-      taskId: id,
-      event: "gestartet",
-      status: "in Arbeit",
-    });
-
     try {
-      const result = await processor(started);
-      const completedAt = nowIso();
-      const done: Task = {
-        ...started,
-        status: "erledigt",
-        updatedAt: completedAt,
-        completedAt,
-        result,
-      };
-      await saveTask(done);
       await appendLog({
+        at: startedAt,
+        taskId: id,
+        event: "gestartet",
+        status: "in Arbeit",
+      });
+    } catch {
+      // in Arbeit ist gespeichert, Processor darf trotzdem laufen.
+    }
+
+    let result: string;
+    try {
+      result = await processor(started);
+    } catch (error) {
+      return markFailed(started, errorMessage(error));
+    }
+
+    const completedAt = nowIso();
+    const done: Task = {
+      ...started,
+      status: "erledigt",
+      updatedAt: completedAt,
+      completedAt,
+      result,
+    };
+    try {
+      return await persistStatus(done, {
         at: completedAt,
         taskId: id,
         event: "erledigt",
         status: "erledigt",
         message: result,
       });
-      return done;
     } catch (error) {
-      const failedAt = nowIso();
-      const message = error instanceof Error ? error.message : String(error);
-      const failed: Task = {
-        ...started,
-        status: "fehlgeschlagen",
-        updatedAt: failedAt,
-        failedAt,
-        error: message,
-      };
-      await saveTask(failed);
-      await appendLog({
-        at: failedAt,
-        taskId: id,
-        event: "fehlgeschlagen",
-        status: "fehlgeschlagen",
-        error: message,
-      });
-      return failed;
+      return markFailed(started, errorMessage(error));
     }
+  }
+
+  async function recoverStale(maxAgeMinuten = 30): Promise<Task[]> {
+    const nowMs = (options.now ?? (() => new Date()))().getTime();
+    const maxAgeMs = maxAgeMinuten * 60 * 1000;
+    const recovered: Task[] = [];
+
+    for (const task of await loadTasks()) {
+      if (task.status !== "in Arbeit") {
+        continue;
+      }
+      const startedMs = Date.parse(task.startedAt ?? task.updatedAt);
+      if (!Number.isFinite(startedMs) || nowMs - startedMs <= maxAgeMs) {
+        continue;
+      }
+      recovered.push(await markFailed(task, "abgebrochen"));
+    }
+
+    return recovered;
+  }
+
+  async function reset(id: string): Promise<Task> {
+    const current = await get(id);
+    if (current.status !== "in Arbeit") {
+      throw new TaskConflictError(id, current.status, "zurückgesetzt");
+    }
+
+    const timestamp = nowIso();
+    const resetTask: Task = {
+      ...current,
+      status: "offen",
+      updatedAt: timestamp,
+      startedAt: undefined,
+      completedAt: undefined,
+      failedAt: undefined,
+      error: undefined,
+      result: undefined,
+    };
+    await saveTask(resetTask);
+    try {
+      await appendLog({
+        at: timestamp,
+        taskId: id,
+        event: "zurückgesetzt",
+        status: "offen",
+      });
+    } catch {
+      // Reset-Status zählt.
+    }
+    return resetTask;
   }
 
   async function log(taskId?: string): Promise<TaskLogEntry[]> {
@@ -262,7 +340,7 @@ export function createTaskService(options: TaskServiceOptions) {
       .filter((entry) => (taskId ? entry.taskId === taskId : true));
   }
 
-  return { create, get, list, run, log };
+  return { create, get, list, run, log, recoverStale, reset };
 }
 
 export type TaskService = ReturnType<typeof createTaskService>;

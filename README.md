@@ -46,6 +46,7 @@ npm run jarvis -- add --id pool --titel Whirlpool --aufgabe putzen
 npm run jarvis -- list
 npm run jarvis -- get pool
 npm run jarvis -- run pool
+npm run jarvis -- reset pool
 npm run jarvis -- log
 ```
 
