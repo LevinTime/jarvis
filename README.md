@@ -6,25 +6,27 @@ heute noch Whirlpool sauber machen, abends Hühner füttern", und Jarvis
 macht daraus Aufgaben, Termine und Erinnerungen.
 
 ## Vorhanden
-- Task-Modul: anlegen, abfragen, abarbeiten
+- Task-Modul: anlegen, abfragen, abarbeiten, optionales `faelligAm`
 - Status: `offen` → `in Arbeit` → `erledigt` (oder `fehlgeschlagen`)
 - Transkript-Zugriff: Markdown-Protokolle aus `transcripts/`
 - CLI unter `src/cli.ts`
+- Telegram-Bot: Grok mit Function-Calling, Erinnerungen
 
 ## Geplant
-- Chat über Telegram und eine Web-Oberfläche
-- Transkripte in den Chat-Kontext ziehen
-- Wetter und Erinnerungen für Issum
-- Lokal mit Ollama oder über eine Cloud-API (Grok/xAI)
+- Web-Oberfläche
+- Wetter für Issum
+- Lokal mit Ollama als Alternative zur Cloud-API
 
 ## Struktur
 - `src/cli.ts`          CLI (Tasks + Transkripte)
+- `src/bot/`            Telegram-Bot, Tools, Erinnerungen
+- `src/llm.ts`          Grok/xAI-Client
 - `src/tasks/`          Task-Logik (Store, Status, Log)
 - `src/transcripts/`    Gesprächsprotokolle lesen und parsen
 - `transcripts/`        Markdown-Protokolle
 - `prompts/`            System-Prompts
 - `skills/`             Fähigkeiten (Wetter, Kalender, …)
-- `config/`             `.env.example` (Keys, noch nicht von der CLI gelesen)
+- `config/`             `.env.example`
 - `data/`               lokale Tasks und Logs (gitignored)
 
 ## Starten
@@ -37,7 +39,21 @@ cd jarvis
 npm install
 ```
 
-`.env` aus `config/.env.example` ist für spätere API/Bot-Anbindung. Die Task-CLI braucht das noch nicht.
+`.env` liegt im Projektordner (gitignored). Vorlage: `config/.env.example`.
+
+### Telegram-Bot starten
+
+1. `config/.env.example` nach `.env` im Projektordner kopieren.
+2. `GROK_API_KEY`, `TELEGRAM_BOT_TOKEN` und `ALLOWED_CHAT_ID` eintragen.
+3. Chat-ID holen: Bot `/start` schreiben, die angezeigte ID in `.env` setzen, Bot neu starten.
+
+```powershell
+npm run bot
+```
+
+Befehle: `/start` (Chat-ID), `/aufgaben`, `/erledigt <id>`.
+Freitext geht an Grok und wird zu Aufgaben, z. B. „heute noch Whirlpool sauber machen, abends Hühner füttern“.
+Fällige offene Tasks werden einmal erinnert. Um 8:00 Europe/Berlin kommt eine Tagesübersicht.
 
 ### Tasks (CLI)
 

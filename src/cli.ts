@@ -27,6 +27,7 @@ function formatTask(task: Task): string {
     `createdAt: ${task.createdAt}`,
     `updatedAt: ${task.updatedAt}`,
   ];
+  if (task.faelligAm) lines.push(`faelligAm: ${task.faelligAm}`);
   if (task.startedAt) lines.push(`startedAt: ${task.startedAt}`);
   if (task.completedAt) lines.push(`completedAt: ${task.completedAt}`);
   if (task.failedAt) lines.push(`failedAt: ${task.failedAt}`);
@@ -46,7 +47,7 @@ function usage(): string {
   return [
     "Jarvis Task-CLI",
     "",
-    "  add --titel <text> --aufgabe <text> [--id <id>]",
+    "  add --titel <text> --aufgabe <text> [--id <id>] [--faelligAm <iso>]",
     "  add --json <objekt>",
     "  get <id>",
     "  list",
@@ -81,6 +82,7 @@ function jsonObject(raw: string): {
   id?: string;
   titel?: string;
   aufgabe?: string;
+  faelligAm?: string;
 } {
   let parsed: unknown;
   try {
@@ -96,6 +98,7 @@ function jsonObject(raw: string): {
     id: typeof record.id === "string" ? record.id : undefined,
     titel: typeof record.titel === "string" ? record.titel : undefined,
     aufgabe: typeof record.aufgabe === "string" ? record.aufgabe : undefined,
+    faelligAm: typeof record.faelligAm === "string" ? record.faelligAm : undefined,
   };
 }
 
@@ -116,7 +119,6 @@ export async function runCli(
 
   try {
     await service.recoverStale();
-    await transcripts.list();
 
     if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
       out(usage());
@@ -133,6 +135,7 @@ export async function runCli(
           aufgabe: { type: "string" },
           id: { type: "string" },
           json: { type: "string" },
+          faelligAm: { type: "string" },
         },
         allowPositionals: false,
       });
@@ -141,6 +144,7 @@ export async function runCli(
         id: parsed.values.id ?? fromJson.id,
         titel: parsed.values.titel ?? fromJson.titel ?? "",
         aufgabe: parsed.values.aufgabe ?? fromJson.aufgabe ?? "",
+        faelligAm: parsed.values.faelligAm ?? fromJson.faelligAm,
       });
       out(`angelegt  ${task.id}  ${task.status}  ${task.titel}`);
       return 0;
@@ -239,6 +243,8 @@ export async function runCli(
 
 const entry = process.argv[1]?.replaceAll("\\", "/");
 if (entry?.endsWith("/cli.ts") || entry?.endsWith("/cli.js")) {
+  const { loadEnv } = await import("./load-env.ts");
+  loadEnv();
   const code = await runCli(process.argv.slice(2));
   process.exit(code);
 }

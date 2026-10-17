@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -139,6 +139,52 @@ test("CLI lists and shows a transcript", async () => {
     const missing = await run(["transcript", "fehlt"]);
     assert.equal(missing.code, 1);
     assert.match(missing.stderr.join("\n"), /Transkript nicht gefunden: fehlt/);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("CLI list does not create the transcripts dir", async () => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), "jarvis-cli-"));
+  const parent = await mkdtemp(path.join(tmpdir(), "jarvis-cli-tr-parent-"));
+  const transcriptsDir = path.join(parent, "missing-transcripts");
+  const stdout: string[] = [];
+  try {
+    const code = await runCli(["list"], {
+      dataDir,
+      transcriptsDir,
+      stdout: (line) => stdout.push(line),
+      stderr: () => {},
+    });
+    assert.equal(code, 0);
+    assert.equal(stdout[0], "keine tasks");
+    await assert.rejects(() => stat(transcriptsDir), (error: unknown) => {
+      assert.equal((error as NodeJS.ErrnoException).code, "ENOENT");
+      return true;
+    });
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("CLI add stores faelligAm", async () => {
+  const { run, cleanup } = await withCli();
+  try {
+    const added = await run([
+      "add",
+      "--id",
+      "pool",
+      "--titel",
+      "Whirlpool",
+      "--aufgabe",
+      "putzen",
+      "--faelligAm",
+      "2026-10-17T20:00:00+02:00",
+    ]);
+    assert.equal(added.code, 0);
+    const got = await run(["get", "pool"]);
+    assert.match(got.stdout.join("\n"), /faelligAm: 2026-10-17T20:00:00\+02:00/);
   } finally {
     await cleanup();
   }

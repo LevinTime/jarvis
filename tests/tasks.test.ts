@@ -24,6 +24,69 @@ async function withService(extras: ServiceExtras = {}) {
   };
 }
 
+test("create stores optional faelligAm and stays compatible without it", async () => {
+  const { service, dataDir, cleanup } = await withService();
+  try {
+    const withDue = await service.create({
+      id: "pool",
+      titel: "Whirlpool",
+      aufgabe: "putzen",
+      faelligAm: "2026-10-17T20:00:00+02:00",
+    });
+    assert.equal(withDue.faelligAm, "2026-10-17T20:00:00+02:00");
+    assert.equal((await service.get("pool")).faelligAm, "2026-10-17T20:00:00+02:00");
+
+    const without = await service.create({
+      titel: "Hühner füttern",
+      aufgabe: "abends Hühner füttern",
+    });
+    assert.equal(without.faelligAm, undefined);
+
+    await assert.rejects(
+      () => service.create({ titel: "x", aufgabe: "y", faelligAm: "bald" }),
+      TaskValidationError,
+    );
+
+    const reloaded = createTaskService({ dataDir });
+    assert.equal((await reloaded.get("pool")).faelligAm, "2026-10-17T20:00:00+02:00");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("tasks without faelligAm in json still load", async () => {
+  const { service, dataDir, cleanup } = await withService();
+  try {
+    const created = await service.create({
+      titel: "Alt",
+      aufgabe: "alte datei",
+    });
+    await writeFile(
+      path.join(dataDir, "tasks.json"),
+      `${JSON.stringify(
+        [
+          {
+            id: created.id,
+            titel: created.titel,
+            aufgabe: created.aufgabe,
+            status: "offen",
+            createdAt: created.createdAt,
+            updatedAt: created.updatedAt,
+          },
+        ],
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+    const loaded = await service.get(created.id);
+    assert.equal(loaded.faelligAm, undefined);
+    assert.equal(loaded.titel, "Alt");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("create stores a task as offen with timestamps", async () => {
   const { service, cleanup } = await withService();
   try {

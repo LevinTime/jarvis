@@ -11,6 +11,7 @@ export type Task = {
   status: TaskStatus;
   createdAt: string;
   updatedAt: string;
+  faelligAm?: string;
   startedAt?: string;
   completedAt?: string;
   failedAt?: string;
@@ -22,6 +23,7 @@ export type TaskInput = {
   id?: string;
   titel: string;
   aufgabe: string;
+  faelligAm?: string;
 };
 
 export type TaskLogEntry = {
@@ -80,6 +82,17 @@ function requiredText(value: string | undefined, field: string): string {
   const text = value?.trim() ?? "";
   if (!text) {
     throw new TaskValidationError(`${field} darf nicht leer sein`);
+  }
+  return text;
+}
+
+function optionalFaelligAm(value: string | undefined): string | undefined {
+  const text = value?.trim() ?? "";
+  if (!text) {
+    return undefined;
+  }
+  if (!Number.isFinite(Date.parse(text))) {
+    throw new TaskValidationError("faelligAm muss ein ISO-Datum sein");
   }
   return text;
 }
@@ -144,6 +157,7 @@ export function createTaskService(options: TaskServiceOptions) {
   async function create(input: TaskInput): Promise<Task> {
     const titel = requiredText(input.titel, "titel");
     const aufgabe = requiredText(input.aufgabe, "aufgabe");
+    const faelligAm = optionalFaelligAm(input.faelligAm);
     const tasks = await loadTasks();
     const id = input.id?.trim() || randomUUID();
     if (tasks.some((task) => task.id === id)) {
@@ -158,6 +172,7 @@ export function createTaskService(options: TaskServiceOptions) {
       status: "offen",
       createdAt: timestamp,
       updatedAt: timestamp,
+      ...(faelligAm ? { faelligAm } : {}),
     };
     await saveTask(task);
     return task;

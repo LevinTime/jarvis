@@ -8,6 +8,7 @@
   },
   "scripts": {
     "jarvis": "tsx src/cli.ts",
+    "bot": "tsx src/bot/index.ts",
     "test": "tsx --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
@@ -18,5 +19,10 @@
   },
   "allowScripts": {
     "esbuild@0.28.2": true
+  },
+  "dependencies": {
+    "dotenv": "^18.0.8",
+    "grammy": "^1.46.0",
+    "openai": "^7.36.0"
   }
 }
