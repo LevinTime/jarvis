@@ -2,6 +2,11 @@ import { createServer, type IncomingMessage } from "node:http";
 import { Readable } from "node:stream";
 import { Hono } from "hono";
 import {
+  NoteNotFoundError,
+  NoteValidationError,
+  type NoteService,
+} from "../notes/service.ts";
+import {
   TaskConflictError,
   TaskNotFoundError,
   TaskValidationError,
@@ -21,6 +26,12 @@ function errorBody(error: unknown): { status: 400 | 404 | 409 | 500; message: st
   if (error instanceof TaskConflictError) {
     return { status: 409, message: error.message };
   }
+  if (error instanceof NoteValidationError) {
+    return { status: 400, message: error.message };
+  }
+  if (error instanceof NoteNotFoundError) {
+    return { status: 404, message: error.message };
+  }
   const message = error instanceof Error ? error.message : String(error);
   return { status: 500, message };
 }
@@ -28,6 +39,7 @@ function errorBody(error: unknown): { status: 400 | 404 | 409 | 500; message: st
 export function createWebApp(options: {
   reply: (message: string) => Promise<string>;
   tasks: Pick<TaskService, "list" | "run" | "reset">;
+  notes?: Pick<NoteService, "listOpen" | "close">;
 }): Hono {
   const app = new Hono();
 
@@ -57,6 +69,29 @@ export function createWebApp(options: {
     try {
       const task = await options.tasks.reset(c.req.param("id"));
       return c.json({ task });
+    } catch (error) {
+      const body = errorBody(error);
+      return c.json({ error: body.message }, body.status);
+    }
+  });
+
+  app.get("/api/notes", async (c) => {
+    try {
+      const notes = options.notes ? await options.notes.listOpen() : [];
+      return c.json({ notes });
+    } catch (error) {
+      const body = errorBody(error);
+      return c.json({ error: body.message }, body.status);
+    }
+  });
+
+  app.post("/api/notes/:id/close", async (c) => {
+    if (!options.notes) {
+      return c.json({ error: "Notizen sind nicht verfügbar" }, 404);
+    }
+    try {
+      const note = await options.notes.close(c.req.param("id"));
+      return c.json({ note });
     } catch (error) {
       const body = errorBody(error);
       return c.json({ error: body.message }, body.status);

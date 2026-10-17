@@ -3,15 +3,18 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { createNoteService } from "../src/notes/service.ts";
 import { createTaskService } from "../src/tasks/service.ts";
 import { createWebApp, startWebServer, WEB_HOST } from "../src/web/server.ts";
 
 async function withWeb() {
   const dataDir = await mkdtemp(path.join(tmpdir(), "jarvis-web-"));
   const tasks = createTaskService({ dataDir });
+  const notes = createNoteService({ dataDir });
   const seen: string[] = [];
   const app = createWebApp({
     tasks,
+    notes,
     reply: async (message) => {
       seen.push(message);
       return `Echo: ${message}`;
@@ -20,6 +23,7 @@ async function withWeb() {
   const started = await startWebServer(app, { port: 0 });
   return {
     tasks,
+    notes,
     dataDir,
     seen,
     base: `http://${WEB_HOST}:${started.port}`,
@@ -110,6 +114,32 @@ test("web chat uses the injected assistant and rejects an empty message", async 
 
     const missing = await fetch(`${web.base}/api/tasks/fehlt/complete`, { method: "POST" });
     assert.equal(missing.status, 404);
+  } finally {
+    await web.cleanup();
+  }
+});
+
+test("web lists and closes an open note", async () => {
+  const web = await withWeb();
+  try {
+    await web.notes.add({
+      id: "tim",
+      person: "Tim",
+      text: "wegen Samstag noch antworten",
+      erinnernAm: "2026-10-18T09:00:00+02:00",
+    });
+    const listed = await fetch(`${web.base}/api/notes`);
+    assert.equal(listed.status, 200);
+    const body = (await listed.json()) as { notes: Array<{ id: string; person: string }> };
+    assert.equal(body.notes[0]?.id, "tim");
+    assert.equal(body.notes[0]?.person, "Tim");
+
+    const closed = await fetch(`${web.base}/api/notes/tim/close`, { method: "POST" });
+    assert.equal(closed.status, 200);
+    const after = (await (await fetch(`${web.base}/api/notes`)).json()) as {
+      notes: unknown[];
+    };
+    assert.equal(after.notes.length, 0);
   } finally {
     await web.cleanup();
   }

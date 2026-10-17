@@ -3,9 +3,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { createNoteService } from "../src/notes/service.ts";
 import { createTaskService, type Task } from "../src/tasks/service.ts";
 import {
+  findDueOpenNotes,
   findDueOpenTasks,
+  formatDailyOverview,
   runReminderTick,
   shouldSendDailyOverview,
 } from "../src/bot/reminders.ts";
@@ -96,7 +99,70 @@ test("runReminderTick sends a due task once and the morning overview once", asyn
     assert.match(sent[0] ?? "", /Erinnerung: Hühner füttern/);
     assert.match(sent[1] ?? "", /Guten Morgen/);
     assert.match(sent[1] ?? "", /Hühner füttern/);
+    assert.doesNotMatch(sent[1] ?? "", /Offene Punkte/);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
+});
+
+test("runReminderTick reminds an open note once and lists it in the overview", async () => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), "jarvis-note-reminders-"));
+  const tasks = createTaskService({ dataDir });
+  const notes = createNoteService({ dataDir });
+  const sent: string[] = [];
+  try {
+    await notes.add({
+      id: "tim",
+      person: "Tim",
+      text: "wegen Samstag noch antworten",
+      erinnernAm: "2026-10-17T07:00:00+02:00",
+    });
+    const now = new Date("2026-10-17T06:05:00.000Z");
+    const send = async (text: string) => {
+      sent.push(text);
+    };
+    await runReminderTick({ tasks, notes, dataDir, now, send });
+    await runReminderTick({ tasks, notes, dataDir, now, send });
+
+    assert.equal(sent.length, 2);
+    assert.match(sent[0] ?? "", /Offener Punkt: Tim: wegen Samstag noch antworten/);
+    assert.match(sent[1] ?? "", /Guten Morgen/);
+    assert.match(sent[1] ?? "", /Offene Punkte/);
+    assert.match(sent[1] ?? "", /Tim: wegen Samstag noch antworten/);
+
+    await notes.close("tim");
+    const nextMorning = new Date("2026-10-18T06:05:00.000Z");
+    await runReminderTick({ tasks, notes, dataDir, now: nextMorning, send });
+    assert.equal(sent.length, 3);
+    assert.match(sent[2] ?? "", /Keine offenen Aufgaben/);
+    assert.doesNotMatch(sent[2] ?? "", /Tim/);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("formatDailyOverview keeps the task text and appends open notes", () => {
+  const tasks = [task({ id: "a", titel: "Hühner füttern", faelligAm: undefined })];
+  const plain = formatDailyOverview(tasks, "2026-10-17");
+  assert.equal(plain, "Guten Morgen. Heute steht an:\n• Hühner füttern");
+  assert.equal(findDueOpenNotes([], new Date(), {}).length, 0);
+
+  const withNote = formatDailyOverview(tasks, "2026-10-17", [
+    {
+      id: "n",
+      person: "Tim",
+      text: "antworten",
+      erstelltAm: "2026-10-17T10:00:00.000Z",
+      offen: true,
+    },
+    {
+      id: "done",
+      text: "schon zu",
+      erstelltAm: "2026-10-17T10:00:00.000Z",
+      offen: false,
+    },
+  ]);
+  assert.match(withNote, /Hühner füttern/);
+  assert.match(withNote, /Offene Punkte:\n• Tim: antworten/);
+  assert.doesNotMatch(withNote, /schon zu/);
 });

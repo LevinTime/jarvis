@@ -1,3 +1,4 @@
+import type { NoteService } from "../notes/service.ts";
 import type { TaskService } from "../tasks/service.ts";
 import type { TranscriptService } from "../transcripts/service.ts";
 
@@ -100,6 +101,48 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "add_note",
+      description:
+        "Merkt einen offenen Gesprächspunkt oder losen Plan. person ist optional. erinnernAm ist ein optionales ISO-8601-Datum mit Offset.",
+      parameters: {
+        type: "object",
+        properties: {
+          person: { type: "string", description: "Person, z. B. Tim" },
+          text: { type: "string", description: "Was noch offen ist" },
+          erinnernAm: {
+            type: "string",
+            description: "Optionaler Erinnerungszeitpunkt, z. B. 2026-10-18T09:00:00+02:00",
+          },
+        },
+        required: ["text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_open_notes",
+      description: "Listet offene Notizen zu Personen und losen Plänen.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "close_note",
+      description: "Schließt eine offene Notiz.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Notiz-ID" },
+        },
+        required: ["id"],
+      },
+    },
+  },
 ];
 
 function errorMessage(error: unknown): string {
@@ -144,6 +187,7 @@ export function formatNow(now: Date, timeZone: string): string {
 export function createBotTools(
   tasks: TaskService,
   transcripts: TranscriptService,
+  notes?: NoteService,
 ) {
   async function execute(
     name: string,
@@ -181,6 +225,32 @@ export function createBotTools(
         case "get_transcript": {
           const transcript = await transcripts.get(asString(args.id));
           return JSON.stringify({ transcript });
+        }
+        case "add_note": {
+          if (!notes) {
+            return JSON.stringify({ error: "Notizen sind nicht verfügbar" });
+          }
+          const person = asString(args.person).trim();
+          const erinnernAm = asString(args.erinnernAm).trim();
+          const note = await notes.add({
+            text: asString(args.text),
+            ...(person ? { person } : {}),
+            ...(erinnernAm ? { erinnernAm } : {}),
+          });
+          return JSON.stringify({ ok: true, note });
+        }
+        case "list_open_notes": {
+          if (!notes) {
+            return JSON.stringify({ error: "Notizen sind nicht verfügbar" });
+          }
+          return JSON.stringify({ notes: await notes.listOpen() });
+        }
+        case "close_note": {
+          if (!notes) {
+            return JSON.stringify({ error: "Notizen sind nicht verfügbar" });
+          }
+          const note = await notes.close(asString(args.id));
+          return JSON.stringify({ ok: true, note });
         }
         default:
           return JSON.stringify({ error: `Unbekanntes Werkzeug: ${name}` });

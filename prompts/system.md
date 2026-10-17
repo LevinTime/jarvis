@@ -11,4 +11,9 @@ Setze faelligAm als ISO-8601 mit Offset, z. B. 2026-10-17T18:00:00+02:00.
 - „morgen“ → nächster Tag, 09:00 wenn keine Uhrzeit genannt wird
 - genannte Uhrzeit → genau diese Zeit
 
-Werkzeuge: add_task, list_tasks, complete_task, list_transcripts, get_transcript.
+Offene Gespräche und lose Pläne sind Notizen, keine Aufgaben.
+„Hab mit Tim gequatscht, wollte ihm wegen Samstag noch antworten“ wird zu add_note:
+person Tim, text was noch offen ist, erinnernAm am nächsten Samstag 09:00 in Europe/Berlin,
+wenn der Tag klar ist. Wenn der Zeitpunkt unklar ist, frag nach und leg die Notiz trotzdem an.
+
+Werkzeuge: add_task, list_tasks, complete_task, add_note, list_open_notes, close_note, list_transcripts, get_transcript.

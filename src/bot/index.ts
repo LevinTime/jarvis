@@ -1,5 +1,6 @@
 import path from "node:path";
 import { loadEnv, projectRoot } from "../load-env.ts";
+import { createNoteService } from "../notes/service.ts";
 import { createTaskService } from "../tasks/service.ts";
 import { createTranscriptService } from "../transcripts/service.ts";
 import { createGrokClient, loadSystemPrompt } from "../llm.ts";
@@ -29,6 +30,7 @@ const allowedChatId = required("ALLOWED_CHAT_ID");
 const chatId = numericChatId(allowedChatId);
 
 const tasks = createTaskService({ dataDir });
+const notes = createNoteService({ dataDir });
 const transcripts = createTranscriptService({ transcriptsDir });
 await tasks.recoverStale();
 
@@ -41,6 +43,7 @@ const assistant = createAssistant({
   llm,
   systemPrompt,
   tasks,
+  notes,
   transcripts,
   timeZone,
 });
@@ -62,6 +65,7 @@ const bot = createTelegramBot({
 
 startReminders({
   tasks,
+  notes,
   dataDir,
   timeZone,
   send: async (text) => {

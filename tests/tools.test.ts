@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { createNoteService } from "../src/notes/service.ts";
 import { createTaskService } from "../src/tasks/service.ts";
 import { createTranscriptService } from "../src/transcripts/service.ts";
 import {
@@ -169,6 +170,47 @@ test("mocked Grok splits a message into two tasks with due times", async () => {
     assert.equal(huehner?.status, "offen");
   } finally {
     await cleanup();
+  }
+});
+
+test("add_note list_open_notes and close_note keep a person note", async () => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), "jarvis-bot-notes-"));
+  const transcriptsDir = await mkdtemp(path.join(tmpdir(), "jarvis-bot-notes-tr-"));
+  try {
+    const tasks = createTaskService({ dataDir });
+    const transcripts = createTranscriptService({ transcriptsDir });
+    const notes = createNoteService({ dataDir });
+    const tools = createBotTools(tasks, transcripts, notes);
+
+    const raw = await tools.execute("add_note", {
+      person: "Tim",
+      text: "wollte ihm wegen Samstag noch antworten",
+      erinnernAm: "2026-10-18T09:00:00+02:00",
+    });
+    const created = JSON.parse(raw) as {
+      ok: boolean;
+      note: { id: string; offen: boolean; person: string };
+    };
+    assert.equal(created.ok, true);
+    assert.equal(created.note.person, "Tim");
+    assert.equal(created.note.offen, true);
+
+    const open = JSON.parse(await tools.execute("list_open_notes", {})) as {
+      notes: Array<{ id: string }>;
+    };
+    assert.equal(open.notes.length, 1);
+
+    const closed = JSON.parse(
+      await tools.execute("close_note", { id: created.note.id }),
+    ) as { note: { offen: boolean } };
+    assert.equal(closed.note.offen, false);
+    const after = JSON.parse(await tools.execute("list_open_notes", {})) as {
+      notes: unknown[];
+    };
+    assert.equal(after.notes.length, 0);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+    await rm(transcriptsDir, { recursive: true, force: true });
   }
 });
 

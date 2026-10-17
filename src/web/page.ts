@@ -48,6 +48,11 @@ export function renderHomePage(): string {
       <p id="tasks-error" class="error"></p>
       <ul id="tasks"></ul>
     </section>
+    <section>
+      <h2>Offene Punkte</h2>
+      <p id="notes-error" class="error"></p>
+      <ul id="notes"></ul>
+    </section>
   </main>
   <script>
     const log = document.querySelector("#log");
@@ -56,6 +61,8 @@ export function renderHomePage(): string {
     const send = document.querySelector("#send");
     const tasksEl = document.querySelector("#tasks");
     const tasksError = document.querySelector("#tasks-error");
+    const notesEl = document.querySelector("#notes");
+    const notesError = document.querySelector("#notes-error");
 
     function esc(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({
@@ -106,6 +113,33 @@ export function renderHomePage(): string {
       renderTasks(data.tasks || []);
     }
 
+    function renderNotes(notes) {
+      if (!notes.length) {
+        notesEl.innerHTML = '<li class="empty">keine offenen Punkte</li>';
+        return;
+      }
+      notesEl.innerHTML = notes.map((note) => {
+        const who = note.person ? esc(note.person) + ": " : "";
+        const due = note.erinnernAm ? " · erinnern " + esc(note.erinnernAm) : "";
+        return '<li data-id="' + esc(note.id) + '">' +
+          '<div class="titel">' + who + esc(note.text) + '</div>' +
+          '<div class="meta">' + esc(note.id) + due + '</div>' +
+          '<div class="actions"><button type="button" data-action="close">schließen</button></div>' +
+        '</li>';
+      }).join("");
+    }
+
+    async function loadNotes() {
+      const response = await fetch("/api/notes");
+      const data = await response.json();
+      if (!response.ok) {
+        notesError.textContent = data.error || "Notizen konnten nicht geladen werden.";
+        return;
+      }
+      notesError.textContent = "";
+      renderNotes(data.notes || []);
+    }
+
     tasksEl.addEventListener("click", async (event) => {
       const button = event.target.closest("button[data-action]");
       if (!button) return;
@@ -120,6 +154,21 @@ export function renderHomePage(): string {
         tasksError.textContent = data.error || "Das hat nicht geklappt.";
       }
       await loadTasks();
+    });
+
+    notesEl.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action='close']");
+      if (!button) return;
+      const item = button.closest("[data-id]");
+      const id = item?.getAttribute("data-id");
+      if (!id) return;
+      button.disabled = true;
+      const response = await fetch("/api/notes/" + encodeURIComponent(id) + "/close", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        notesError.textContent = data.error || "Das hat nicht geklappt.";
+      }
+      await loadNotes();
     });
 
     form.addEventListener("submit", async (event) => {
@@ -138,6 +187,7 @@ export function renderHomePage(): string {
         const data = await response.json();
         addBubble("jarvis", response.ok ? data.reply : (data.error || "Das hat nicht geklappt."));
         await loadTasks();
+        await loadNotes();
       } catch {
         addBubble("jarvis", "Der Server antwortet nicht.");
       } finally {
@@ -148,6 +198,9 @@ export function renderHomePage(): string {
 
     loadTasks().catch(() => {
       tasksError.textContent = "Aufgaben konnten nicht geladen werden.";
+    });
+    loadNotes().catch(() => {
+      notesError.textContent = "Notizen konnten nicht geladen werden.";
     });
   </script>
 </body>

@@ -2,6 +2,7 @@ import path from "node:path";
 import { createAssistant } from "../assistant.ts";
 import { createGrokClient, loadSystemPrompt } from "../llm.ts";
 import { loadEnv, projectRoot } from "../load-env.ts";
+import { createNoteService } from "../notes/service.ts";
 import { createTaskService } from "../tasks/service.ts";
 import { createTranscriptService } from "../transcripts/service.ts";
 import { createWebApp, startWebServer } from "./server.ts";
@@ -24,6 +25,7 @@ const timeZone = process.env.TZ?.trim() || "Europe/Berlin";
 const apiKey = process.env.GROK_API_KEY?.trim() ?? "";
 
 const tasks = createTaskService({ dataDir });
+const notes = createNoteService({ dataDir });
 const transcripts = createTranscriptService({ transcriptsDir });
 await tasks.recoverStale();
 
@@ -35,6 +37,7 @@ const assistant = apiKey
       }),
       systemPrompt: await loadSystemPrompt(),
       tasks,
+      notes,
       transcripts,
       timeZone,
     })
@@ -42,6 +45,7 @@ const assistant = apiKey
 
 const app = createWebApp({
   tasks,
+  notes,
   reply: (message) => {
     if (!assistant) {
       return Promise.resolve(
