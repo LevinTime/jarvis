@@ -214,6 +214,32 @@ test("add_note list_open_notes and close_note keep a person note", async () => {
   }
 });
 
+test("complete_task on a daily task returns the next instance", async () => {
+  const { tasks, tools, cleanup } = await withTools();
+  try {
+    await tools.execute("add_task", {
+      titel: "Hühner füttern",
+      aufgabe: "jeden Abend Hühner füttern",
+      faelligAm: "2026-10-17T18:00:00+02:00",
+      wiederholung: "taeglich",
+    });
+    const created = await tasks.list();
+    const raw = await tools.execute("complete_task", { id: created[0]?.id });
+    const parsed = JSON.parse(raw) as {
+      ok: boolean;
+      task: { status: string };
+      next: { status: string; faelligAm: string; wiederholung: string } | null;
+    };
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.task.status, "erledigt");
+    assert.equal(parsed.next?.status, "offen");
+    assert.equal(parsed.next?.wiederholung, "taeglich");
+    assert.equal(parsed.next?.faelligAm, "2026-10-18T18:00:00+02:00");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("list_tasks after complete_task returns the erledigt status", async () => {
   const { tools, cleanup } = await withTools();
   try {

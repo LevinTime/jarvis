@@ -89,11 +89,12 @@ export function renderHomePage(): string {
       }
       tasksEl.innerHTML = tasks.map((task) => {
         const due = task.faelligAm ? " · bis " + esc(task.faelligAm) : "";
+        const repeat = task.wiederholung ? " · " + esc(task.wiederholung) : "";
         const canComplete = task.status === "offen" || task.status === "fehlgeschlagen";
         const canReset = task.status === "in Arbeit";
         return '<li data-id="' + esc(task.id) + '">' +
           '<div class="titel">' + esc(task.titel) + '</div>' +
-          '<div class="meta">' + esc(task.status) + " · " + esc(task.id) + due + '</div>' +
+          '<div class="meta">' + esc(task.status) + " · " + esc(task.id) + due + repeat + '</div>' +
           '<div class="actions">' +
             '<button type="button" data-action="complete"' + (canComplete ? "" : " disabled") + '>abhaken</button>' +
             '<button type="button" data-action="reset"' + (canReset ? "" : " disabled") + '>zurücksetzen</button>' +

@@ -10,6 +10,9 @@ Setze faelligAm als ISO-8601 mit Offset, z. B. 2026-10-17T18:00:00+02:00.
 - „abends“ → 18:00
 - „morgen“ → nächster Tag, 09:00 wenn keine Uhrzeit genannt wird
 - genannte Uhrzeit → genau diese Zeit
+- „jeden Tag“ oder „jeden Abend“ → wiederholung taeglich
+- „jede Woche“ → wiederholung woechentlich
+Nach erledigt legt sich die nächste Instanz von selbst an. Einmaliges bleibt ohne wiederholung.
 
 Offene Gespräche und lose Pläne sind Notizen, keine Aufgaben.
 „Hab mit Tim gequatscht, wollte ihm wegen Samstag noch antworten“ wird zu add_note:

@@ -119,6 +119,27 @@ test("web chat uses the injected assistant and rejects an empty message", async 
   }
 });
 
+test("web complete of a daily task leaves the next evening open", async () => {
+  const web = await withWeb();
+  try {
+    await web.tasks.create({
+      id: "huehner",
+      titel: "Hühner füttern",
+      aufgabe: "jeden Abend Hühner füttern",
+      faelligAm: "2026-10-17T18:00:00+02:00",
+      wiederholung: "taeglich",
+    });
+    const done = await fetch(`${web.base}/api/tasks/huehner/complete`, { method: "POST" });
+    assert.equal(done.status, 200);
+    const listed = await web.tasks.list();
+    const next = listed.find((task) => task.status === "offen");
+    assert.equal(next?.faelligAm, "2026-10-18T18:00:00+02:00");
+    assert.equal(next?.wiederholung, "taeglich");
+  } finally {
+    await web.cleanup();
+  }
+});
+
 test("web lists and closes an open note", async () => {
   const web = await withWeb();
   try {

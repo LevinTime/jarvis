@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { nextOccurrence, type Wiederholung } from "./schedule.ts";
 
 export type TaskStatus = "offen" | "in Arbeit" | "erledigt" | "fehlgeschlagen";
 
@@ -12,6 +13,7 @@ export type Task = {
   createdAt: string;
   updatedAt: string;
   faelligAm?: string;
+  wiederholung?: Wiederholung;
   startedAt?: string;
   completedAt?: string;
   failedAt?: string;
@@ -24,6 +26,7 @@ export type TaskInput = {
   titel: string;
   aufgabe: string;
   faelligAm?: string;
+  wiederholung?: string | null;
 };
 
 export type TaskLogEntry = {
@@ -70,6 +73,7 @@ type TaskServiceOptions = {
   dataDir: string;
   processor?: TaskProcessor;
   now?: () => Date;
+  timeZone?: string;
 };
 
 const RUNNABLE = new Set<TaskStatus>(["offen", "fehlgeschlagen"]);
@@ -84,6 +88,24 @@ function requiredText(value: string | undefined, field: string): string {
     throw new TaskValidationError(`${field} darf nicht leer sein`);
   }
   return text;
+}
+
+function optionalWiederholung(
+  value: string | null | undefined,
+): Wiederholung | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  const text = value.trim();
+  if (!text) {
+    return undefined;
+  }
+  if (text === "taeglich" || text === "woechentlich") {
+    return text;
+  }
+  throw new TaskValidationError(
+    "wiederholung muss taeglich, woechentlich oder null sein",
+  );
 }
 
 function optionalFaelligAm(value: string | undefined): string | undefined {
@@ -108,6 +130,7 @@ export function createTaskService(options: TaskServiceOptions) {
     options.processor ??
     (async (task: Task) => `Erledigt: ${task.titel}`);
   const nowIso = () => (options.now ?? (() => new Date()))().toISOString();
+  const timeZone = options.timeZone ?? "Europe/Berlin";
 
   async function ensureDir() {
     await mkdir(options.dataDir, { recursive: true });
@@ -158,6 +181,7 @@ export function createTaskService(options: TaskServiceOptions) {
     const titel = requiredText(input.titel, "titel");
     const aufgabe = requiredText(input.aufgabe, "aufgabe");
     const faelligAm = optionalFaelligAm(input.faelligAm);
+    const wiederholung = optionalWiederholung(input.wiederholung);
     const tasks = await loadTasks();
     const id = input.id?.trim() || randomUUID();
     if (tasks.some((task) => task.id === id)) {
@@ -173,6 +197,7 @@ export function createTaskService(options: TaskServiceOptions) {
       createdAt: timestamp,
       updatedAt: timestamp,
       ...(faelligAm ? { faelligAm } : {}),
+      ...(wiederholung ? { wiederholung } : {}),
     };
     await saveTask(task);
     return task;
@@ -261,15 +286,16 @@ export function createTaskService(options: TaskServiceOptions) {
     }
 
     const completedAt = nowIso();
-    const done: Task = {
+    const finished: Task = {
       ...started,
       status: "erledigt",
       updatedAt: completedAt,
       completedAt,
       result,
     };
+    let done: Task;
     try {
-      return await persistStatus(done, {
+      done = await persistStatus(finished, {
         at: completedAt,
         taskId: id,
         event: "erledigt",
@@ -279,6 +305,17 @@ export function createTaskService(options: TaskServiceOptions) {
     } catch (error) {
       return markFailed(started, errorMessage(error));
     }
+
+    if (done.wiederholung === "taeglich" || done.wiederholung === "woechentlich") {
+      const base = done.faelligAm ?? done.completedAt ?? completedAt;
+      await create({
+        titel: done.titel,
+        aufgabe: done.aufgabe,
+        wiederholung: done.wiederholung,
+        faelligAm: nextOccurrence(base, done.wiederholung, timeZone),
+      });
+    }
+    return done;
   }
 
   async function recoverStale(maxAgeMinuten = 30): Promise<Task[]> {

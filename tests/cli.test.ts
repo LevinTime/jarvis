@@ -190,6 +190,38 @@ test("CLI add stores faelligAm", async () => {
   }
 });
 
+test("CLI stores a daily repeat and prints the next instance after run", async () => {
+  const { run, cleanup } = await withCli();
+  try {
+    const added = await run([
+      "add",
+      "--id",
+      "huehner",
+      "--titel",
+      "Hühner füttern",
+      "--aufgabe",
+      "jeden Abend Hühner füttern",
+      "--faelligAm",
+      "2026-10-17T18:00:00+02:00",
+      "--wiederholung",
+      "taeglich",
+    ]);
+    assert.equal(added.code, 0);
+    const got = await run(["get", "huehner"]);
+    assert.match(got.stdout.join("\n"), /wiederholung: taeglich/);
+
+    const ran = await run(["run", "huehner"]);
+    assert.equal(ran.code, 0);
+    assert.match(ran.stdout[0] ?? "", /^erledigt  huehner/);
+    assert.match(
+      ran.stdout[1] ?? "",
+      /^nächste  .+  taeglich  2026-10-18T18:00:00\+02:00$/,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
 test("CLI get reports a missing task", async () => {
   const { run, cleanup } = await withCli();
   try {

@@ -28,6 +28,7 @@ function formatTask(task: Task): string {
     `updatedAt: ${task.updatedAt}`,
   ];
   if (task.faelligAm) lines.push(`faelligAm: ${task.faelligAm}`);
+  if (task.wiederholung) lines.push(`wiederholung: ${task.wiederholung}`);
   if (task.startedAt) lines.push(`startedAt: ${task.startedAt}`);
   if (task.completedAt) lines.push(`completedAt: ${task.completedAt}`);
   if (task.failedAt) lines.push(`failedAt: ${task.failedAt}`);
@@ -47,7 +48,7 @@ function usage(): string {
   return [
     "Jarvis Task-CLI",
     "",
-    "  add --titel <text> --aufgabe <text> [--id <id>] [--faelligAm <iso>]",
+    "  add --titel <text> --aufgabe <text> [--id <id>] [--faelligAm <iso>] [--wiederholung taeglich|woechentlich]",
     "  add --json <objekt>",
     "  get <id>",
     "  list",
@@ -83,6 +84,7 @@ function jsonObject(raw: string): {
   titel?: string;
   aufgabe?: string;
   faelligAm?: string;
+  wiederholung?: string | null;
 } {
   let parsed: unknown;
   try {
@@ -99,6 +101,12 @@ function jsonObject(raw: string): {
     titel: typeof record.titel === "string" ? record.titel : undefined,
     aufgabe: typeof record.aufgabe === "string" ? record.aufgabe : undefined,
     faelligAm: typeof record.faelligAm === "string" ? record.faelligAm : undefined,
+    wiederholung:
+      record.wiederholung === null
+        ? null
+        : typeof record.wiederholung === "string"
+          ? record.wiederholung
+          : undefined,
   };
 }
 
@@ -136,6 +144,7 @@ export async function runCli(
           id: { type: "string" },
           json: { type: "string" },
           faelligAm: { type: "string" },
+          wiederholung: { type: "string" },
         },
         allowPositionals: false,
       });
@@ -145,6 +154,7 @@ export async function runCli(
         titel: parsed.values.titel ?? fromJson.titel ?? "",
         aufgabe: parsed.values.aufgabe ?? fromJson.aufgabe ?? "",
         faelligAm: parsed.values.faelligAm ?? fromJson.faelligAm,
+        wiederholung: parsed.values.wiederholung ?? fromJson.wiederholung,
       });
       out(`angelegt  ${task.id}  ${task.status}  ${task.titel}`);
       return 0;
@@ -178,12 +188,19 @@ export async function runCli(
         err("run braucht eine id");
         return 1;
       }
+      const before = new Set((await service.list()).map((item) => item.id));
       const task = await service.run(id);
       if (task.status === "fehlgeschlagen") {
         err(`fehlgeschlagen  ${task.id}  ${task.error ?? ""}`.trim());
         return 1;
       }
       out(`erledigt  ${task.id}  ${task.result ?? task.titel}`);
+      const next = (await service.list()).find((item) => !before.has(item.id));
+      if (next) {
+        out(
+          `nächste  ${next.id}  ${next.wiederholung ?? ""}  ${next.faelligAm ?? ""}`.trim(),
+        );
+      }
       return 0;
     }
 

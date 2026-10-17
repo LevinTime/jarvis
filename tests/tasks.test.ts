@@ -347,6 +347,102 @@ test("reset sets a hanging in-Arbeit task back to offen", async () => {
   }
 });
 
+test("a daily task spawns the next evening after it is done", async () => {
+  const { service, cleanup } = await withService({
+    now: () => new Date("2026-10-17T16:30:00.000Z"),
+  });
+  try {
+    await service.create({
+      id: "huehner",
+      titel: "Hühner füttern",
+      aufgabe: "jeden Abend Hühner füttern",
+      faelligAm: "2026-10-17T18:00:00+02:00",
+      wiederholung: "taeglich",
+    });
+    const done = await service.run("huehner");
+    assert.equal(done.status, "erledigt");
+    assert.equal(done.wiederholung, "taeglich");
+
+    const listed = await service.list();
+    assert.equal(listed.length, 2);
+    const next = listed.find((task) => task.id !== "huehner");
+    assert.equal(next?.status, "offen");
+    assert.equal(next?.titel, "Hühner füttern");
+    assert.equal(next?.aufgabe, "jeden Abend Hühner füttern");
+    assert.equal(next?.wiederholung, "taeglich");
+    assert.equal(next?.faelligAm, "2026-10-18T18:00:00+02:00");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("a weekly task is due again seven days later", async () => {
+  const { service, cleanup } = await withService();
+  try {
+    await service.create({
+      id: "woche",
+      titel: "Hühner füttern",
+      aufgabe: "jede Woche",
+      faelligAm: "2026-10-17T18:00:00+02:00",
+      wiederholung: "woechentlich",
+    });
+    await service.run("woche");
+    const next = (await service.list()).find((task) => task.status === "offen");
+    assert.equal(next?.faelligAm, "2026-10-24T18:00:00+02:00");
+    assert.equal(next?.wiederholung, "woechentlich");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("a failed recurring task does not spawn and a bad repeat is rejected", async () => {
+  const { service, cleanup } = await withService({
+    processor: async () => {
+      throw new Error("kein Futter");
+    },
+  });
+  try {
+    await service.create({
+      id: "woche",
+      titel: "Hühner füttern",
+      aufgabe: "jede Woche",
+      faelligAm: "2026-10-17T18:00:00+02:00",
+      wiederholung: "woechentlich",
+    });
+    const failed = await service.run("woche");
+    assert.equal(failed.status, "fehlgeschlagen");
+    assert.equal((await service.list()).length, 1);
+
+    await assert.rejects(
+      () =>
+        service.create({
+          titel: "x",
+          aufgabe: "y",
+          wiederholung: "monatlich",
+        }),
+      TaskValidationError,
+    );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("tasks without wiederholung stay a single instance", async () => {
+  const { service, cleanup } = await withService();
+  try {
+    const created = await service.create({
+      titel: "Einmal",
+      aufgabe: "nur einmal",
+      wiederholung: null,
+    });
+    assert.equal(created.wiederholung, undefined);
+    await service.run(created.id);
+    assert.equal((await service.list()).length, 1);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("tasks persist for a new service on the same data dir", async () => {
   const { service, dataDir, cleanup } = await withService();
   try {

@@ -52,6 +52,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
             description:
               "Optionales Fälligkeitsdatum als ISO-8601, z. B. 2026-10-17T18:00:00+02:00",
           },
+          wiederholung: {
+            type: "string",
+            enum: ["taeglich", "woechentlich"],
+            description:
+              "Optional. taeglich oder woechentlich. Nach erledigt wird die nächste Instanz angelegt.",
+          },
         },
         required: ["titel", "aufgabe"],
       },
@@ -197,10 +203,12 @@ export function createBotTools(
       switch (name) {
         case "add_task": {
           const faelligAm = asString(args.faelligAm).trim();
+          const wiederholung = asString(args.wiederholung).trim();
           const task = await tasks.create({
             titel: asString(args.titel),
             aufgabe: asString(args.aufgabe),
             ...(faelligAm ? { faelligAm } : {}),
+            ...(wiederholung ? { wiederholung } : {}),
           });
           return JSON.stringify({ ok: true, task });
         }
@@ -209,8 +217,10 @@ export function createBotTools(
           return JSON.stringify({ tasks: listed });
         }
         case "complete_task": {
+          const before = new Set((await tasks.list()).map((item) => item.id));
           const task = await tasks.run(asString(args.id));
-          return JSON.stringify({ ok: true, task });
+          const next = (await tasks.list()).find((item) => !before.has(item.id)) ?? null;
+          return JSON.stringify({ ok: true, task, next });
         }
         case "list_transcripts": {
           const listed = await transcripts.list();

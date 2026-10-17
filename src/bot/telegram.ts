@@ -24,7 +24,8 @@ export function formatAufgaben(tasks: Task[]): string {
   return tasks
     .map((task) => {
       const due = task.faelligAm ? `  bis ${task.faelligAm}` : "";
-      return `${task.id}  ${task.status}  ${task.titel}${due}`;
+      const repeat = task.wiederholung ? `  ${task.wiederholung}` : "";
+      return `${task.id}  ${task.status}  ${task.titel}${due}${repeat}`;
     })
     .join("\n");
 }
