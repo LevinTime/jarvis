@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { parseJson, readText, writeTextAtomic } from "../atomic-file.ts";
 import { nextOccurrence, type Wiederholung } from "./schedule.ts";
 
 export type TaskStatus = "offen" | "in Arbeit" | "erledigt" | "fehlgeschlagen";
@@ -138,8 +139,8 @@ export function createTaskService(options: TaskServiceOptions) {
 
   async function loadTasks(): Promise<Task[]> {
     try {
-      const raw = await readFile(tasksFile, "utf8");
-      const parsed: unknown = JSON.parse(raw);
+      const raw = await readText(tasksFile);
+      const parsed = parseJson(raw, "tasks.json");
       if (!Array.isArray(parsed)) {
         throw new Error("tasks.json ist kein Array");
       }
@@ -153,8 +154,7 @@ export function createTaskService(options: TaskServiceOptions) {
   }
 
   async function saveTasks(tasks: Task[]) {
-    await ensureDir();
-    await writeFile(tasksFile, `${JSON.stringify(tasks, null, 2)}\n`, "utf8");
+    await writeTextAtomic(tasksFile, `${JSON.stringify(tasks, null, 2)}\n`);
   }
 
   async function appendLog(entry: TaskLogEntry) {

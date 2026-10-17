@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parseJson, readText, writeTextAtomic } from "../atomic-file.ts";
 
 export type Note = {
   id: string;
@@ -64,14 +64,10 @@ export function createNoteService(options: NoteServiceOptions) {
   const notesFile = path.join(options.dataDir, "notes.json");
   const nowIso = () => (options.now ?? (() => new Date()))().toISOString();
 
-  async function ensureDir() {
-    await mkdir(options.dataDir, { recursive: true });
-  }
-
   async function load(): Promise<Note[]> {
     try {
-      const raw = await readFile(notesFile, "utf8");
-      const parsed: unknown = JSON.parse(raw);
+      const raw = await readText(notesFile);
+      const parsed = parseJson(raw, "notes.json");
       if (!Array.isArray(parsed)) {
         throw new Error("notes.json ist kein Array");
       }
@@ -85,8 +81,7 @@ export function createNoteService(options: NoteServiceOptions) {
   }
 
   async function save(notes: Note[]) {
-    await ensureDir();
-    await writeFile(notesFile, `${JSON.stringify(notes, null, 2)}\n`, "utf8");
+    await writeTextAtomic(notesFile, `${JSON.stringify(notes, null, 2)}\n`);
   }
 
   async function add(input: NoteInput): Promise<Note> {

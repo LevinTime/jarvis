@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parseJson, readText, writeTextAtomic } from "../atomic-file.ts";
+import { logError } from "../log.ts";
 import type { Note, NoteService } from "../notes/service.ts";
 import type { Task, TaskService } from "../tasks/service.ts";
 
@@ -120,8 +121,8 @@ export function formatDailyOverview(
 
 export async function loadReminderState(dataDir: string): Promise<ReminderState> {
   try {
-    const raw = await readFile(path.join(dataDir, "reminder-state.json"), "utf8");
-    const parsed: unknown = JSON.parse(raw);
+    const raw = await readText(path.join(dataDir, "reminder-state.json"));
+    const parsed = parseJson(raw, "reminder-state.json");
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       return { sent: {} };
     }
@@ -152,11 +153,9 @@ export async function saveReminderState(
   dataDir: string,
   state: ReminderState,
 ): Promise<void> {
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(
+  await writeTextAtomic(
     path.join(dataDir, "reminder-state.json"),
     `${JSON.stringify(state, null, 2)}\n`,
-    "utf8",
   );
 }
 
@@ -228,12 +227,12 @@ export function startReminders(options: {
 
   const handle = setInterval(() => {
     void tick().catch((error) => {
-      console.error("Erinnerung fehlgeschlagen", error);
+      logError("Erinnerung fehlgeschlagen", error);
     });
   }, intervalMs);
 
   void tick().catch((error) => {
-    console.error("Erinnerung fehlgeschlagen", error);
+    logError("Erinnerung fehlgeschlagen", error);
   });
 
   return {
