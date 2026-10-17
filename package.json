@@ -9,6 +9,7 @@
   "scripts": {
     "jarvis": "tsx src/cli.ts",
     "bot": "tsx src/bot/index.ts",
+    "web": "tsx src/web/index.ts",
     "test": "tsx --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
@@ -23,6 +24,7 @@
   "dependencies": {
     "dotenv": "^18.0.8",
     "grammy": "^1.46.0",
+    "hono": "^4.13.13",
     "openai": "^7.36.0"
   }
 }

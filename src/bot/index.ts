@@ -3,7 +3,7 @@ import { loadEnv, projectRoot } from "../load-env.ts";
 import { createTaskService } from "../tasks/service.ts";
 import { createTranscriptService } from "../transcripts/service.ts";
 import { createGrokClient, loadSystemPrompt } from "../llm.ts";
-import { chatWithTools, createBotTools } from "./tools.ts";
+import { createAssistant } from "../assistant.ts";
 import {
   createTelegramBot,
   formatAufgaben,
@@ -37,20 +37,18 @@ const llm = createGrokClient({
   model: process.env.GROK_MODEL?.trim() || "grok-4",
 });
 const systemPrompt = await loadSystemPrompt();
-const tools = createBotTools(tasks, transcripts);
+const assistant = createAssistant({
+  llm,
+  systemPrompt,
+  tasks,
+  transcripts,
+  timeZone,
+});
 
 const bot = createTelegramBot({
   token: required("TELEGRAM_BOT_TOKEN"),
   allowedChatId,
-  handleText: (text) =>
-    chatWithTools({
-      llm,
-      systemPrompt,
-      userText: text,
-      tools: tools.definitions,
-      execute: tools.execute,
-      timeZone,
-    }),
+  handleText: (text) => assistant.reply(text),
   listAufgaben: async () => formatAufgaben(await tasks.list()),
   erledigt: async (id) => {
     try {
