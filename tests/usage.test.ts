@@ -267,6 +267,15 @@ test("createGrokClient sends grok-4.3 with reasoning none and 500 max tokens", a
   assert.equal(body?.model, "grok-4.3");
   assert.equal(body?.max_tokens, 500);
   assert.equal(body?.reasoning_effort, "none");
+  await client.complete({
+    messages: [{ role: "user", content: "hi" }],
+    tools: [],
+    purpose: "selfcheck",
+    maxTokens: 150,
+    reasoningEffort: "none",
+  });
+  assert.equal(body?.max_tokens, 150);
+  assert.equal(body?.reasoning_effort, "none");
   assert.equal(readReasoningEffort("low"), "low");
   assert.equal(readReasoningEffort("nope"), "none");
   assert.equal(readMaxTokens(undefined), 500);
