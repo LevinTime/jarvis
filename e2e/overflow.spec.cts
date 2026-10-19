@@ -92,5 +92,14 @@ for (const viewport of viewports) {
     await page.screenshot({
       path: path.resolve("docs/screenshots", `${viewport.name}-einstellungen.png`),
     });
+    await dialog.getByRole("button", { name: "Gedächtnis" }).click();
+    const memory = page.getByRole("dialog", { name: "Gedächtnis" });
+    await expect(memory).toBeVisible();
+    await expect(memory.getByRole("heading", { name: "Gedächtnis" })).toBeVisible();
+    await expect(memory.getByText("Noch leer")).toBeVisible();
+    await assertInside(page);
+    await page.screenshot({
+      path: path.resolve("docs/screenshots", `${viewport.name}-gedaechtnis.png`),
+    });
   });
 }

@@ -1,7 +1,8 @@
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { berlinParts } from "@jarvis/dates.ts";
 import { swipeAxis } from "@jarvis/gesture.ts";
 import type { WidgetItem } from "../../../src/settings/model.ts";
+import { api } from "../api.ts";
 import { useI18n } from "../i18n/index.ts";
 import type { ChatMessage, Note, StatusResponse, Task } from "../types.ts";
 import { Empty, Lamp, Sheet, Skeleton } from "../ui.tsx";
@@ -34,6 +35,8 @@ export function Dashboard({
   onCloseNote,
   onCreate,
   onSettings,
+  onMemory,
+  mistakeStamp,
 }: {
   status: StatusResponse | null;
   tasks: Task[];
@@ -52,12 +55,29 @@ export function Dashboard({
   onCloseNote: (id: string) => void;
   onCreate: (input: { titel: string }) => Promise<void>;
   onSettings: () => void;
+  onMemory: () => void;
+  mistakeStamp: number;
 }) {
   const t = useI18n();
   const [notesOpen, setNotesOpen] = useState(false);
+  const [mistakes, setMistakes] = useState(0);
   const pull = useRef<{ x: number; y: number } | null>(null);
   const budget = status?.usage?.budget;
   const link = connection === "connected" ? t("dash.live") : connection === "connecting" ? t("dash.connecting") : t("dash.offline");
+
+  useEffect(() => {
+    let gone = false;
+    void api<{ correctionsThisMonth: number }>("/api/memory")
+      .then((body) => {
+        if (!gone) {
+          setMistakes(body.correctionsThisMonth);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      gone = true;
+    };
+  }, [mistakeStamp]);
 
   return (
     <div className="stack">
@@ -67,6 +87,7 @@ export function Dashboard({
           <div>
             <p className="eyebrow">Jarvis</p>
             <h1>{greeting(new Date(), t)}, Levin</h1>
+            <p className="hint">{t("dash.mistakes", { count: mistakes })}</p>
             <p
               className="hint"
               data-no-swipe
@@ -123,6 +144,7 @@ export function Dashboard({
             onOpen={onOpen}
             onUsage={onUsage}
             onCreate={onCreate}
+            onMemory={onMemory}
             status={status}
             tasks={tasks}
             notes={notes}

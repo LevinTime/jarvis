@@ -2,6 +2,8 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createEventBus } from "../src/events.ts";
+import { createCorrectionStore } from "../src/memory/corrections.ts";
+import { createMemoryStore } from "../src/memory/store.ts";
 import { createMessageStore } from "../src/messages/store.ts";
 import { createNoteService } from "../src/notes/service.ts";
 import { createSettingsStore, settingsPath } from "../src/settings/store.ts";
@@ -12,6 +14,12 @@ const dataDir = await mkdtemp(path.join(tmpdir(), "jarvis-e2e-"));
 const tasks = createTaskService({ dataDir, now: () => new Date("2026-10-19T09:30:00+02:00") });
 const notes = createNoteService({ dataDir });
 const messages = createMessageStore({ dataDir });
+const memory = createMemoryStore({ dataDir, now: () => new Date("2026-10-19T09:30:00+02:00") });
+const corrections = createCorrectionStore({
+  dataDir,
+  memory,
+  now: () => new Date("2026-10-19T09:30:00+02:00"),
+});
 const settings = createSettingsStore({
   file: settingsPath(dataDir),
   defaultT3Url: "http://127.0.0.1:9",
@@ -22,6 +30,8 @@ const app = createWebApp({
   messages,
   events: createEventBus(),
   settings,
+  memory,
+  corrections,
   t3Url: "http://127.0.0.1:9",
   now: () => new Date("2026-10-19T09:30:00+02:00"),
   frontendDist: path.resolve("web/dist"),

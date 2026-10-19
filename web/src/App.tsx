@@ -9,6 +9,7 @@ import { useLiveFeed } from "./feed.ts";
 import { useI18n } from "./i18n/index.ts";
 import { Chat } from "./pages/Chat.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
+import { MemoryPage } from "./pages/Memory.tsx";
 import { Settings } from "./pages/Settings.tsx";
 import { T3Page } from "./pages/T3.tsx";
 import { Todos } from "./pages/Todos.tsx";
@@ -54,6 +55,8 @@ export function App() {
   const [defaultT3, setDefaultT3] = useState(DEFAULT_T3_URL);
   const [editing, setEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [mistakeStamp, setMistakeStamp] = useState(0);
   const [index, setIndex] = useState(1);
   const [seenCalendar, setSeenCalendar] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
@@ -451,6 +454,8 @@ export function App() {
               }}
               onCreate={createTask}
               onSettings={() => setSettingsOpen(true)}
+              onMemory={() => setMemoryOpen(true)}
+              mistakeStamp={mistakeStamp}
             />
           </section>
           <section className="slide" role="region" aria-label={t("nav.tasks")}>
@@ -471,6 +476,7 @@ export function App() {
               error={error}
               onSend={send}
               onOlder={older}
+              onCorrected={() => setMistakeStamp((value) => value + 1)}
             />
           </section>
           <section className="slide" role="region" aria-label={t("nav.t3")}>
@@ -510,6 +516,15 @@ export function App() {
           onT3={onT3}
           onClose={() => setSettingsOpen(false)}
           onReset={() => updateSettings({ widgets: DEFAULT_WIDGETS.map((item) => ({ ...item })) })}
+          onMemory={() => setMemoryOpen(true)}
+        />
+      ) : null}
+      {memoryOpen ? (
+        <MemoryPage
+          onClose={() => {
+            setMemoryOpen(false);
+            setMistakeStamp((value) => value + 1);
+          }}
         />
       ) : null}
       {usageOpen ? (

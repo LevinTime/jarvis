@@ -28,6 +28,7 @@ export function Board({
   onOpen,
   onUsage,
   onCreate,
+  onMemory,
   status,
   tasks,
   notes,
@@ -40,6 +41,7 @@ export function Board({
   onOpen: (page: number) => void;
   onUsage: () => void;
   onCreate: (input: { titel: string }) => Promise<void>;
+  onMemory: () => void;
   status: StatusResponse | null;
   tasks: Task[];
   notes: Note[];
@@ -119,6 +121,7 @@ export function Board({
                   onOpen={onOpen}
                   onUsage={onUsage}
                   onCreate={onCreate}
+                  onMemory={onMemory}
                   locked={editing}
                 />
               </WidgetFrame>
@@ -139,7 +142,7 @@ export function Board({
                   type="button"
                   className="text-btn ghost"
                   onClick={() => {
-                    onChange([...items, { id: kind, kind, size: kind === "quick" || kind === "notes" || kind === "cost" || kind === "chat" ? "s" : "m" }]);
+                    onChange([...items, { id: kind, kind, size: kind === "quick" || kind === "notes" || kind === "cost" || kind === "chat" || kind === "memory" ? "s" : "m" }]);
                     setAdding(false);
                   }}
                 >
@@ -168,6 +171,7 @@ function label(kind: WidgetKind, tr: (key: string) => string): string {
     case "notes": return tr("widget.notes");
     case "quick": return tr("widget.quick");
     case "t3": return tr("widget.t3");
+    case "memory": return tr("widget.memory");
   }
 }
 
@@ -218,6 +222,7 @@ function WidgetBody({
   onOpen,
   onUsage,
   onCreate,
+  onMemory,
   locked,
 }: {
   item: WidgetItem;
@@ -228,6 +233,7 @@ function WidgetBody({
   onOpen: (page: number) => void;
   onUsage: () => void;
   onCreate: (input: { titel: string }) => Promise<void>;
+  onMemory: () => void;
   locked: boolean;
 }) {
   const t = useI18n();
@@ -318,6 +324,14 @@ function WidgetBody({
   }
   if (item.kind === "quick") {
     return <QuickAdd locked={locked} onCreate={onCreate} />;
+  }
+  if (item.kind === "memory") {
+    return (
+      <button type="button" className="row body" onClick={() => { if (!locked) onMemory(); }}>
+        <span className="kicker">{t("widget.memory")}</span>
+        <p>{t("widget.memoryEmpty")}</p>
+      </button>
+    );
   }
   return <T3Status onOpen={() => openTask(4)} />;
 }

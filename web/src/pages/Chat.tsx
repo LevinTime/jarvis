@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { api } from "../api.ts";
 import { clock, dayLabel } from "../format.ts";
 import type { ChatMessage } from "../types.ts";
 import { useI18n } from "../i18n/index.ts";
-import { Empty, Markdown, Skeleton, pulse } from "../ui.tsx";
+import { Empty, Markdown, Sheet, Skeleton, pulse } from "../ui.tsx";
 
 export function Chat({
   messages,
@@ -10,19 +11,26 @@ export function Chat({
   error,
   onSend,
   onOlder,
+  onCorrected,
 }: {
   messages: ChatMessage[];
   loading: boolean;
   error: string | null;
   onSend: (text: string) => Promise<void>;
   onOlder: (beforeId: string) => Promise<ChatMessage[]>;
+  onCorrected: () => void;
 }) {
   const t = useI18n();
   const [text, setText] = useState("");
   const [jump, setJump] = useState(false);
   const [older, setOlder] = useState(false);
+  const [wrong, setWrong] = useState<ChatMessage | null>(null);
+  const [note, setNote] = useState("");
+  const [wrongError, setWrongError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const hold = useRef<number | null>(null);
   const typing = messages.some((message) => message.role === "user" && message.status === "pending");
 
   useEffect(() => {
@@ -43,6 +51,39 @@ export function Chat({
     stick.current = true;
     pulse();
     await onSend(value);
+  }
+
+  function clearHold() {
+    if (hold.current) {
+      window.clearTimeout(hold.current);
+      hold.current = null;
+    }
+  }
+
+  function openWrong(message: ChatMessage) {
+    setWrong(message);
+    setNote("");
+    setWrongError(null);
+    setSaved(false);
+  }
+
+  async function saveWrong() {
+    if (!wrong) {
+      return;
+    }
+    setWrongError(null);
+    try {
+      await api("/api/corrections", {
+        method: "POST",
+        body: JSON.stringify({ messageId: wrong.id, korrektur: note.trim() }),
+      });
+      setWrong(null);
+      setNote("");
+      setSaved(true);
+      onCorrected();
+    } catch (reason) {
+      setWrongError(reason instanceof Error ? reason.message : t("memory.fail"));
+    }
   }
 
   async function loadOlder() {
@@ -78,6 +119,7 @@ export function Chat({
         </div>
       </header>
       {error ? <div className="banner bad" role="alert">{error}</div> : null}
+      {saved ? <div className="banner">{t("memory.saved")}</div> : null}
       <div
         className="chat-log"
         ref={logRef}
@@ -103,7 +145,27 @@ export function Chat({
           return (
             <div key={message.id} className="stack">
               {showDay ? <div className="day-chip">{day}</div> : null}
-              <article className={`bubble ${message.source === "system" ? "system" : mine ? "user" : "assistant"}`}>
+              <article
+                className={`bubble ${message.source === "system" ? "system" : mine ? "user" : "assistant"}`}
+                {...(mine ? {} : { "data-no-swipe": true })}
+                onPointerDown={() => {
+                  if (mine) {
+                    return;
+                  }
+                  clearHold();
+                  hold.current = window.setTimeout(() => openWrong(message), 480);
+                }}
+                onPointerMove={clearHold}
+                onPointerUp={clearHold}
+                onPointerCancel={clearHold}
+                onContextMenu={(event) => {
+                  if (mine) {
+                    return;
+                  }
+                  event.preventDefault();
+                  openWrong(message);
+                }}
+              >
                 <div className="meta">
                   <span>{message.source === "telegram" ? t("source.telegram") : message.source === "web" ? t("source.web") : t("source.system")}</span>
                   <time dateTime={message.ts}>{clock(message.ts)}</time>
@@ -173,6 +235,14 @@ export function Chat({
         />
         <button type="submit" className="send" aria-label={t("chat.send")}>{t("chat.send")}</button>
       </form>
+      <Sheet open={wrong !== null} title={t("memory.wrong")} onClose={() => setWrong(null)}>
+        <label className="field">
+          <span>{t("memory.wrongHint")}</span>
+          <textarea value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} />
+        </label>
+        {wrongError ? <p role="alert">{wrongError}</p> : null}
+        <button type="button" className="text-btn" onClick={() => void saveWrong()}>{t("common.save")}</button>
+      </Sheet>
     </div>
   );
 }

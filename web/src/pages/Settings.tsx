@@ -1,5 +1,7 @@
 import { useI18n } from "../i18n/index.ts";
-import type { AppSettings, DensityId, LocaleId, ThemeId } from "../../../src/settings/model.ts";
+import type { AppSettings, CostCheckId, DensityId, LocaleId, ThemeId } from "../../../src/settings/model.ts";
+
+const COST: CostCheckId[] = ["an", "aus", "kaeufe"];
 
 const THEMES: ThemeId[] = ["midnight", "ocean", "aurora", "graphite", "light"];
 const DENSITIES: DensityId[] = ["compact", "normal", "airy"];
@@ -11,6 +13,7 @@ export function Settings({
   onT3,
   onClose,
   onReset,
+  onMemory,
 }: {
   settings: AppSettings;
   t3Field: string;
@@ -18,6 +21,7 @@ export function Settings({
   onT3: (value: string) => void;
   onClose: () => void;
   onReset: () => void;
+  onMemory: () => void;
 }) {
   const t = useI18n();
   return (
@@ -100,6 +104,26 @@ export function Settings({
         </label>
       </section>
       <section className="settings-card">
+        <span className="kicker">{t("settings.cost")}</span>
+        <div className="choice" role="group" aria-label={t("settings.cost")}>
+          {COST.map((id) => (
+            <button key={id} type="button" className="text-btn ghost" aria-pressed={settings.costCheck === id} onClick={() => onChange({ costCheck: id })}>
+              {costLabel(id, t)}
+            </button>
+          ))}
+        </div>
+        <label className="toggle">
+          <span>
+            {t("settings.selfCheck")}
+            <p className="hint">{t("settings.selfCheckHint")}</p>
+          </span>
+          <input type="checkbox" checked={settings.selfCheck} onChange={(event) => onChange({ selfCheck: event.target.checked })} />
+        </label>
+        <button type="button" className="text-btn" onClick={onMemory}>
+          {t("settings.memory")}
+        </button>
+      </section>
+      <section className="settings-card">
         <label className="field">
           <span>{t("settings.t3")}</span>
           <input type="url" inputMode="url" value={t3Field} onChange={(event) => onT3(event.target.value)} placeholder="http://127.0.0.1:3773" />
@@ -112,6 +136,14 @@ export function Settings({
       </section>
     </div>
   );
+}
+
+function costLabel(id: CostCheckId, tr: (key: string) => string): string {
+  switch (id) {
+    case "an": return tr("settings.costAn");
+    case "aus": return tr("settings.costAus");
+    case "kaeufe": return tr("settings.costBuy");
+  }
 }
 
 function themeName(theme: ThemeId, tr: (key: string) => string): string {

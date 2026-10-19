@@ -312,7 +312,7 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
 .now-line::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 99px; background: var(--danger); }
 .field { display: grid; gap: 6px; margin-bottom: 12px; }
 .field span { color: var(--muted); font-size: 0.85rem; }
-.field input, .field select, .field textarea, .settings-screen input[type="text"], .settings-screen input[type="url"] {
+.field input, .field select, .field textarea, .settings-screen input[type="text"], .settings-screen input[type="url"], .memory-screen textarea, .fact textarea {
   min-height: 48px; width: 100%; border-radius: var(--radius-control); border: 0;
   background: var(--bg); color: var(--fg); padding: 0 12px;
   box-shadow: inset 0 0 0 1px var(--highlight-soft);
@@ -366,6 +366,15 @@ html[data-editing="1"] .widget { animation: jiggle 0.28s ease-in-out infinite al
 .dock button[aria-current="page"] { color: var(--on-accent); }
 .dock svg { width: 18px; height: 18px; }
 
+.memory-screen {
+  position: absolute; inset: 0; z-index: 42; overflow: auto;
+  background:
+    radial-gradient(120% 70% at 0% -10%, var(--glow), transparent 46%),
+    linear-gradient(180deg, var(--bg-2), var(--bg) 28%);
+  padding: calc(12px + env(safe-area-inset-top)) var(--pad) calc(24px + env(safe-area-inset-bottom));
+  animation: rise 0.4s var(--spring);
+}
+.fact, .fact p, .bubble { min-width: 0; overflow-wrap: anywhere; }
 .settings-screen {
   position: absolute; inset: 0; z-index: 30; overflow: auto;
   background:

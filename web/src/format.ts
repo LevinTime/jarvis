@@ -81,5 +81,7 @@ export function purposeLabel(value: string): string {
   if (value === "tool") return t("purpose.tool");
   if (value === "translate") return t("purpose.translate");
   if (value === "summary") return t("purpose.summary");
+  if (value === "memory") return t("purpose.memory");
+  if (value === "selfcheck") return t("purpose.selfcheck");
   return value;
 }
