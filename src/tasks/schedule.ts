@@ -72,6 +72,80 @@ function formatIso(date: Date, timeZone: string): string {
   return `${civil.year}-${pad(civil.month)}-${pad(civil.day)}T${pad(civil.hour)}:${pad(civil.minute)}:${pad(civil.second)}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
 }
 
+export function dayKey(date: Date, timeZone = "Europe/Berlin"): string {
+  const civil = civilInZone(date, timeZone);
+  return `${civil.year}-${pad(civil.month)}-${pad(civil.day)}`;
+}
+
+export function startOfDay(date: Date, timeZone = "Europe/Berlin"): Date {
+  const civil = civilInZone(date, timeZone);
+  return zonedTime(civil.year, civil.month, civil.day, 0, 0, 0, timeZone);
+}
+
+export function addDays(date: Date, days: number, timeZone = "Europe/Berlin"): Date {
+  const civil = civilInZone(date, timeZone);
+  const shifted = new Date(Date.UTC(civil.year, civil.month - 1, civil.day + days));
+  return zonedTime(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth() + 1,
+    shifted.getUTCDate(),
+    civil.hour,
+    civil.minute,
+    civil.second,
+    timeZone,
+  );
+}
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  Mon: 0,
+  Tue: 1,
+  Wed: 2,
+  Thu: 3,
+  Fri: 4,
+  Sat: 5,
+  Sun: 6,
+};
+
+export function startOfWeek(date: Date, timeZone = "Europe/Berlin"): Date {
+  const civil = civilInZone(date, timeZone);
+  const noon = zonedTime(civil.year, civil.month, civil.day, 12, 0, 0, timeZone);
+  const weekday = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    weekday: "short",
+  }).format(noon);
+  const index = WEEKDAY_INDEX[weekday] ?? 0;
+  return addDays(startOfDay(date, timeZone), -index, timeZone);
+}
+
+export function isoInZone(local: string, timeZone = "Europe/Berlin"): string {
+  const trimmed = local.trim();
+  if (!trimmed) {
+    throw new Error("faelligAm muss ein ISO-Datum sein");
+  }
+  if (/[zZ]$/.test(trimmed) || /[+-]\d{2}:\d{2}$/.test(trimmed)) {
+    const parsed = new Date(trimmed);
+    if (!Number.isFinite(parsed.getTime())) {
+      throw new Error("faelligAm muss ein ISO-Datum sein");
+    }
+    return formatIso(parsed, timeZone);
+  }
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(trimmed);
+  if (!match) {
+    throw new Error("faelligAm muss ein ISO-Datum sein");
+  }
+  const instant = zonedTime(
+    Number(match[1]),
+    Number(match[2]),
+    Number(match[3]),
+    Number(match[4] ?? "0"),
+    Number(match[5] ?? "0"),
+    Number(match[6] ?? "0"),
+    timeZone,
+  );
+  return formatIso(instant, timeZone);
+}
+
 export function nextOccurrence(
   iso: string,
   wiederholung: Wiederholung,

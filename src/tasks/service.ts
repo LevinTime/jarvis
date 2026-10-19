@@ -30,6 +30,14 @@ export type TaskInput = {
   wiederholung?: string | null;
 };
 
+export type TaskPatch = {
+  titel?: string;
+  aufgabe?: string;
+  faelligAm?: string | null;
+  wiederholung?: string | null;
+  status?: TaskStatus;
+};
+
 export type TaskLogEntry = {
   at: string;
   taskId: string;
@@ -78,6 +86,16 @@ type TaskServiceOptions = {
 };
 
 const RUNNABLE = new Set<TaskStatus>(["offen", "fehlgeschlagen"]);
+const STATUSES = new Set<TaskStatus>(["offen", "in Arbeit", "erledigt", "fehlgeschlagen"]);
+
+function hasFieldPatch(patch: TaskPatch): boolean {
+  return (
+    patch.titel !== undefined ||
+    patch.aufgabe !== undefined ||
+    patch.faelligAm !== undefined ||
+    patch.wiederholung !== undefined
+  );
+}
 
 function isNotFound(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
@@ -368,6 +386,86 @@ export function createTaskService(options: TaskServiceOptions) {
     return resetTask;
   }
 
+  async function applyFields(task: Task, patch: TaskPatch): Promise<Task> {
+    const next: Task = { ...task, updatedAt: nowIso() };
+    if (patch.titel !== undefined) {
+      next.titel = requiredText(patch.titel, "titel");
+    }
+    if (patch.aufgabe !== undefined) {
+      next.aufgabe = requiredText(patch.aufgabe, "aufgabe");
+    }
+    if (patch.faelligAm !== undefined) {
+      if (patch.faelligAm === null || patch.faelligAm.trim() === "") {
+        delete next.faelligAm;
+      } else {
+        const faelligAm = optionalFaelligAm(patch.faelligAm);
+        if (faelligAm) {
+          next.faelligAm = faelligAm;
+        }
+      }
+    }
+    if (patch.wiederholung !== undefined) {
+      const wiederholung = optionalWiederholung(patch.wiederholung);
+      if (wiederholung) {
+        next.wiederholung = wiederholung;
+      } else {
+        delete next.wiederholung;
+      }
+    }
+    return saveTask(next);
+  }
+
+  async function update(id: string, patch: TaskPatch): Promise<Task> {
+    if (patch.status !== undefined && !STATUSES.has(patch.status)) {
+      throw new TaskValidationError("status ist ungültig");
+    }
+    const current = await get(id);
+    if (patch.status === "erledigt" && current.status !== "erledigt") {
+      if (hasFieldPatch(patch)) {
+        await applyFields(current, patch);
+      }
+      const ready = await get(id);
+      if (!RUNNABLE.has(ready.status)) {
+        throw new TaskConflictError(id, ready.status);
+      }
+      return run(id);
+    }
+    if (patch.status === "offen" && current.status === "in Arbeit") {
+      const resetTask = await reset(id);
+      return hasFieldPatch(patch) ? applyFields(resetTask, patch) : resetTask;
+    }
+    const base = hasFieldPatch(patch) ? await applyFields(current, patch) : current;
+    if (patch.status === undefined || patch.status === base.status) {
+      return base;
+    }
+    const timestamp = nowIso();
+    const next: Task = { ...base, status: patch.status, updatedAt: timestamp };
+    if (patch.status === "offen") {
+      delete next.startedAt;
+      delete next.completedAt;
+      delete next.failedAt;
+      delete next.error;
+      delete next.result;
+    }
+    if (patch.status === "in Arbeit") {
+      next.startedAt = base.startedAt ?? timestamp;
+    }
+    if (patch.status === "fehlgeschlagen") {
+      next.failedAt = timestamp;
+      next.error = base.error ?? "manuell markiert";
+    }
+    return saveTask(next);
+  }
+
+  async function remove(id: string): Promise<void> {
+    const tasks = await loadTasks();
+    const next = tasks.filter((task) => task.id !== id);
+    if (next.length === tasks.length) {
+      throw new TaskNotFoundError(id);
+    }
+    await saveTasks(next);
+  }
+
   async function log(taskId?: string): Promise<TaskLogEntry[]> {
     let raw: string;
     try {
@@ -392,7 +490,7 @@ export function createTaskService(options: TaskServiceOptions) {
       .filter((entry) => (taskId ? entry.taskId === taskId : true));
   }
 
-  return { create, get, list, run, log, recoverStale, reset };
+  return { create, get, list, run, log, recoverStale, reset, update, remove };
 }
 
 export type TaskService = ReturnType<typeof createTaskService>;
