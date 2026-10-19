@@ -1,7 +1,14 @@
 import { writeSync } from "node:fs";
 
+export function redactSecrets(message: string): string {
+  return message
+    .replace(/\d{6,}:[A-Za-z0-9_-]{20,}/g, "<token>")
+    .replace(/xai-[A-Za-z0-9_-]+/gi, "xai-<redacted>")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-<redacted>");
+}
+
 export function formatLogLine(message: string, now = new Date()): string {
-  return `${now.toISOString()} ${message}`;
+  return `${now.toISOString()} ${redactSecrets(message)}`;
 }
 
 export function logInfo(message: string): void {
