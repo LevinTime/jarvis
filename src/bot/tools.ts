@@ -1,6 +1,7 @@
 import type { NoteService } from "../notes/service.ts";
 import type { TaskService } from "../tasks/service.ts";
 import type { TranscriptService } from "../transcripts/service.ts";
+import type { UsagePurpose, UsageSource } from "../usage/types.ts";
 
 export type ToolDefinition = {
   type: "function";
@@ -32,6 +33,8 @@ export type LlmClient = {
   complete(input: {
     messages: LlmMessage[];
     tools: ToolDefinition[];
+    purpose?: UsagePurpose;
+    source?: UsageSource;
   }): Promise<LlmResult>;
 };
 
@@ -282,6 +285,8 @@ export async function chatWithTools(options: {
   now?: Date;
   timeZone?: string;
   maxRounds?: number;
+  prior?: LlmMessage[];
+  source?: UsageSource;
 }): Promise<string> {
   const timeZone = options.timeZone ?? "Europe/Berlin";
   const now = options.now ?? new Date();
@@ -290,6 +295,7 @@ export async function chatWithTools(options: {
       role: "system",
       content: `${options.systemPrompt.trim()}\n\nAktuelle Zeit: ${formatNow(now, timeZone)} (${timeZone})`,
     },
+    ...(options.prior ?? []),
     { role: "user", content: options.userText },
   ];
   const maxRounds = options.maxRounds ?? 8;
@@ -298,6 +304,8 @@ export async function chatWithTools(options: {
     const result = await options.llm.complete({
       messages,
       tools: options.tools,
+      purpose: round === 0 ? "chat" : "tool",
+      source: options.source,
     });
     if (result.tool_calls && result.tool_calls.length > 0) {
       messages.push({
