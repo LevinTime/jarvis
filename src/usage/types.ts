@@ -1,6 +1,6 @@
 export type UsageSource = "telegram" | "web" | "cli" | "cron" | "system";
 
-export type UsagePurpose = "chat" | "translate" | "tool" | "summary";
+export type UsagePurpose = "chat" | "translate" | "tool" | "summary" | "memory" | "selfcheck";
 
 export type UsageEntry = {
   ts: string;

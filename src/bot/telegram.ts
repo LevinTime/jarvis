@@ -1,5 +1,6 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import { logError } from "../log.ts";
+import { parseFalschReply } from "../memory/model.ts";
 import type { Task } from "../tasks/service.ts";
 
 const TELEGRAM_LIMIT = 4096;
@@ -184,12 +185,24 @@ export function numericChatId(allowedChatId: string): number | string {
   return /^-?\d+$/.test(allowedChatId) ? Number(allowedChatId) : allowedChatId;
 }
 
+export function formatMemory(facts: Array<{ kategorie: string; text: string }>): string {
+  if (facts.length === 0) {
+    return "Noch nichts gemerkt.";
+  }
+  return facts.map((fact) => `• [${fact.kategorie}] ${fact.text}`).join("\n");
+}
+
 export function createTelegramBot(options: {
   token: string;
   allowedChatId: string;
   handleText: (text: string) => Promise<string>;
   listAufgaben: () => Promise<string>;
   erledigt: (id: string) => Promise<string>;
+  merken: (text: string) => Promise<string>;
+  listMemory: () => Promise<string>;
+  findMemory: (query: string) => Promise<Array<{ id: string; text: string }>>;
+  forgetMemory: (id: string) => Promise<string>;
+  correct: (input: { frage: string; falscheAntwort: string; korrektur: string }) => Promise<void>;
 }): Bot {
   const bot = new Bot(options.token);
 
@@ -217,13 +230,97 @@ export function createTelegramBot(options: {
     await replyParts((text) => ctx.reply(text), await options.erledigt(id));
   });
 
+  bot.command("merken", async (ctx) => {
+    const text = ctx.match?.toString().trim() ?? "";
+    if (!text) {
+      await ctx.reply("merken braucht einen Satz, z. B. /merken Levin trinkt Tee");
+      return;
+    }
+    try {
+      await ctx.reply(await options.merken(text));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.reply(message);
+    }
+  });
+
+  bot.command(["gedaechtnis", "gedächtnis"], async (ctx) => {
+    await replyParts((text) => ctx.reply(text), await options.listMemory());
+  });
+
+  bot.command("vergiss", async (ctx) => {
+    const query = ctx.match?.toString().trim() ?? "";
+    if (!query) {
+      await ctx.reply("vergiss braucht ein Stichwort");
+      return;
+    }
+    const matches = await options.findMemory(query);
+    if (matches.length === 0) {
+      await ctx.reply("Nichts gefunden.");
+      return;
+    }
+    const keyboard = new InlineKeyboard();
+    for (const fact of matches.slice(0, 6)) {
+      keyboard.text(fact.text.slice(0, 28), `forget:${fact.id}`).row();
+    }
+    await ctx.reply("Welchen Eintrag vergessen?", { reply_markup: keyboard });
+  });
+
+  bot.callbackQuery(/^forget:(.+)$/, async (ctx) => {
+    const id = ctx.match[1] ?? "";
+    try {
+      await options.forgetMemory(id);
+      await ctx.answerCallbackQuery({ text: "Vergessen" });
+      await ctx.editMessageText("Vergessen.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.answerCallbackQuery({ text: message });
+    }
+  });
+
+  bot.callbackQuery("wrong", async (ctx) => {
+    const message = ctx.callbackQuery.message;
+    const falscheAntwort = message && "text" in message ? message.text ?? "" : "";
+    try {
+      await options.correct({ frage: "", falscheAntwort, korrektur: "als falsch markiert" });
+      await ctx.answerCallbackQuery({ text: "Als falsch gemerkt" });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      await ctx.answerCallbackQuery({ text: detail });
+    }
+  });
+
   bot.on("message:text", async (ctx) => {
     const text = ctx.message.text;
     if (text.startsWith("/") || ctx.from?.is_bot || isMirroredWebMessage(text)) {
       return;
     }
+    const korrektur = parseFalschReply(text);
+    const replied = ctx.message.reply_to_message;
+    if (korrektur && replied && "text" in replied) {
+      const parent = replied.reply_to_message as { text?: string } | undefined;
+      const frage = typeof parent?.text === "string" ? parent.text : "";
+      try {
+        await options.correct({
+          frage,
+          falscheAntwort: replied.text ?? "",
+          korrektur,
+        });
+        await ctx.reply("Gemerkte Korrektur.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await ctx.reply(message);
+      }
+      return;
+    }
     try {
-      await replyParts((part) => ctx.reply(part), await options.handleText(text));
+      const answer = await options.handleText(text);
+      const parts = splitTelegramText(answer);
+      for (let index = 0; index < parts.length; index += 1) {
+        const part = parts[index] ?? "";
+        const last = index === parts.length - 1;
+        await ctx.reply(part, last ? { reply_markup: new InlineKeyboard().text("👎", "wrong") } : {});
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await ctx.reply(`Da ist etwas schiefgegangen: ${message}`);

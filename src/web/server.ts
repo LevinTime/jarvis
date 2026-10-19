@@ -29,6 +29,16 @@ import type { UsageRange } from "../usage/cost.ts";
 import { probeT3 } from "../settings/probe.ts";
 import { SettingsValidationError, DEFAULT_SETTINGS, readDefaultT3Url } from "../settings/model.ts";
 import type { SettingsStore } from "../settings/store.ts";
+import { correctionsThisMonth, type CorrectionStore } from "../memory/corrections.ts";
+import {
+  isCategory,
+  isImportance,
+  MemoryNotFoundError,
+  MemoryValidationError,
+  type MemoryCategory,
+  type MemoryImportance,
+} from "../memory/model.ts";
+import type { MemoryStore } from "../memory/store.ts";
 import { renderHomePage, renderMissingFrontend } from "./page.ts";
 import {
   apiError,
@@ -67,6 +77,8 @@ export type WebAppOptions = {
   chatPerMinute?: number;
   settings?: SettingsStore;
   t3Url?: string;
+  memory?: MemoryStore;
+  corrections?: CorrectionStore;
 };
 
 function errorBody(error: unknown): { status: 400 | 404 | 409 | 500; message: string } {
@@ -85,8 +97,11 @@ function errorBody(error: unknown): { status: 400 | 404 | 409 | 500; message: st
   if (error instanceof NoteNotFoundError) {
     return { status: 404, message: error.message };
   }
-  if (error instanceof SettingsValidationError) {
+  if (error instanceof SettingsValidationError || error instanceof MemoryValidationError) {
     return { status: 400, message: error.message };
+  }
+  if (error instanceof MemoryNotFoundError) {
+    return { status: 404, message: error.message };
   }
   const message = error instanceof Error ? error.message : String(error);
   return { status: 500, message };
@@ -101,6 +116,14 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function text(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+async function readObject(c: { req: { json(): Promise<unknown> } }): Promise<Record<string, unknown> | null> {
+  try {
+    return record(await c.req.json());
+  } catch {
+    return null;
+  }
 }
 
 function normalizeDue(value: string | undefined, timeZone: string): string | undefined {
@@ -507,6 +530,134 @@ export function createWebApp(options: WebAppOptions): Hono {
     const current = await settingsBody();
     const probe = await probeT3(current.effectiveT3Url);
     return c.json({ url: current.effectiveT3Url, reachable: probe.reachable, status: probe.status });
+  });
+
+  app.get("/api/memory", async (c) => {
+    if (!options.memory) {
+      return c.json({ facts: [], corrections: [], correctionsThisMonth: 0 });
+    }
+    const kategorie = c.req.query("kategorie")?.trim() ?? "";
+    const query = c.req.query("q")?.trim() ?? "";
+    let facts = await options.memory.search(query);
+    if (kategorie) {
+      if (!isCategory(kategorie)) {
+        return c.json(apiError("invalid", "Kategorie ist ungültig"), 400);
+      }
+      facts = facts.filter((fact) => fact.kategorie === kategorie);
+    }
+    const corrections = options.corrections ? await options.corrections.list() : [];
+    return c.json({
+      facts,
+      corrections,
+      correctionsThisMonth: correctionsThisMonth(corrections, now(), timeZone),
+    });
+  });
+
+  app.post("/api/memory", async (c) => {
+    if (!options.memory) {
+      return c.json(apiError("unavailable", "Gedächtnis ist nicht verfügbar"), 501);
+    }
+    const body = await readObject(c);
+    if (!body) {
+      return c.json(apiError("invalid", "JSON muss ein Objekt sein"), 400);
+    }
+    const kategorie = text(body.kategorie);
+    const weight = body.wichtigkeit;
+    try {
+      const fact = await options.memory.remember({
+        text: text(body.text) ?? "",
+        quelle: "manuell",
+        ...(kategorie && isCategory(kategorie) ? { kategorie: kategorie as MemoryCategory } : {}),
+        ...(isImportance(weight) ? { wichtigkeit: weight as MemoryImportance } : {}),
+      });
+      return c.json({ fact }, 201);
+    } catch (error) {
+      const failed = errorBody(error);
+      return c.json(apiError("invalid", failed.message), failed.status === 500 ? 500 : 400);
+    }
+  });
+
+  app.patch("/api/memory/:id", async (c) => {
+    if (!options.memory) {
+      return c.json(apiError("unavailable", "Gedächtnis ist nicht verfügbar"), 501);
+    }
+    const body = await readObject(c);
+    if (!body) {
+      return c.json(apiError("invalid", "JSON muss ein Objekt sein"), 400);
+    }
+    const kategorie = text(body.kategorie);
+    if (kategorie !== undefined && !isCategory(kategorie)) {
+      return c.json(apiError("invalid", "Kategorie ist ungültig"), 400);
+    }
+    if (body.wichtigkeit !== undefined && !isImportance(body.wichtigkeit)) {
+      return c.json(apiError("invalid", "Wichtigkeit ist ungültig"), 400);
+    }
+    try {
+      const fact = await options.memory.update(c.req.param("id"), {
+        ...(text(body.text) !== undefined ? { text: text(body.text) } : {}),
+        ...(kategorie && isCategory(kategorie) ? { kategorie } : {}),
+        ...(isImportance(body.wichtigkeit) ? { wichtigkeit: body.wichtigkeit } : {}),
+        ...(typeof body.aktiv === "boolean" ? { aktiv: body.aktiv } : {}),
+      });
+      return c.json({ fact });
+    } catch (error) {
+      const failed = errorBody(error);
+      const code = failed.status === 404 ? "not_found" : "invalid";
+      return c.json(apiError(code, failed.message), failed.status === 500 ? 500 : failed.status);
+    }
+  });
+
+  app.delete("/api/memory/:id", async (c) => {
+    if (!options.memory) {
+      return c.json(apiError("unavailable", "Gedächtnis ist nicht verfügbar"), 501);
+    }
+    try {
+      const fact = await options.memory.forget(c.req.param("id"));
+      return c.json({ fact });
+    } catch (error) {
+      const failed = errorBody(error);
+      return c.json(apiError(failed.status === 404 ? "not_found" : "invalid", failed.message), failed.status);
+    }
+  });
+
+  app.post("/api/corrections", async (c) => {
+    if (!options.corrections || !options.messages) {
+      return c.json(apiError("unavailable", "Korrekturen sind nicht verfügbar"), 501);
+    }
+    const body = await readObject(c);
+    if (!body) {
+      return c.json(apiError("invalid", "JSON muss ein Objekt sein"), 400);
+    }
+    const messageId = text(body.messageId)?.trim() ?? "";
+    if (!messageId) {
+      return c.json(apiError("invalid", "messageId fehlt"), 400);
+    }
+    const history = await options.messages.list({ limit: 200 });
+    const index = history.findIndex((message) => message.id === messageId);
+    const answer = index >= 0 ? history[index] : undefined;
+    if (!answer || answer.role !== "assistant") {
+      return c.json(apiError("invalid", "Antwort nicht gefunden"), 400);
+    }
+    let frage = "";
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      const previous = history[cursor];
+      if (previous?.role === "user") {
+        frage = previous.text;
+        break;
+      }
+    }
+    try {
+      const correction = await options.corrections.add({
+        frage,
+        falscheAntwort: answer.text,
+        korrektur: text(body.korrektur)?.trim() || "als falsch markiert",
+        quelle: "web",
+      });
+      return c.json({ correction }, 201);
+    } catch (error) {
+      const failed = errorBody(error);
+      return c.json(apiError("invalid", failed.message), failed.status === 500 ? 500 : 400);
+    }
   });
 
   app.get("/api/usage", async (c) => {

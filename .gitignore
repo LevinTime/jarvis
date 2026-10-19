@@ -18,6 +18,9 @@ venv/
 .DS_Store
 Thumbs.db
 data/
+data/memory.json
+data/memory.md
+data/corrections.json
 web/dist/
 web/node_modules/
 test-results/

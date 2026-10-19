@@ -1,3 +1,5 @@
+import { isCategory, isImportance, type MemoryCategory, type MemorySource } from "../memory/model.ts";
+import type { MemoryStore } from "../memory/store.ts";
 import type { NoteService } from "../notes/service.ts";
 import type { Task, TaskService } from "../tasks/service.ts";
 import type { Transcript, TranscriptService } from "../transcripts/service.ts";
@@ -35,6 +37,8 @@ export type LlmClient = {
     tools: ToolDefinition[];
     purpose?: UsagePurpose;
     source?: UsageSource;
+    maxTokens?: number;
+    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   }): Promise<LlmResult>;
 };
 
@@ -149,6 +153,60 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           id: { type: "string", description: "Notiz-ID" },
         },
         required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remember_fact",
+      description:
+        "Merkt einen dauerhaften Fakt als einen Satz. Kein Smalltalk, keine Passwörter oder Tokens.",
+      parameters: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "Ein eigenständiger Satz" },
+          kategorie: {
+            type: "string",
+            enum: ["person", "vorliebe", "ort", "projekt", "termin-kontext", "regel", "korrektur"],
+          },
+          wichtigkeit: { type: "number", description: "1 niedrig, 2 normal, 3 immer in den Kontext" },
+        },
+        required: ["text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_fact",
+      description: "Ersetzt den Text eines bestehenden Fakts. Der alte Satz bleibt im Verlauf.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          text: { type: "string" },
+          kategorie: {
+            type: "string",
+            enum: ["person", "vorliebe", "ort", "projekt", "termin-kontext", "regel", "korrektur"],
+          },
+          wichtigkeit: { type: "number" },
+        },
+        required: ["id", "text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "forget_fact",
+      description: "Deaktiviert einen Fakt über die id oder ein Stichwort.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          stichwort: { type: "string" },
+        },
       },
     },
   },
@@ -294,7 +352,18 @@ export function createBotTools(
   tasks: TaskService,
   transcripts: TranscriptService,
   notes?: NoteService,
+  memory?: MemoryStore,
 ) {
+  let memorySource: MemorySource = "manuell";
+
+  function importance(value: unknown): 1 | 2 | 3 | undefined {
+    return isImportance(value) ? value : undefined;
+  }
+
+  function category(value: unknown): MemoryCategory | undefined {
+    return isCategory(value) ? value : undefined;
+  }
+
   async function execute(
     name: string,
     args: Record<string, unknown>,
@@ -360,6 +429,46 @@ export function createBotTools(
           const note = await notes.close(asString(args.id));
           return JSON.stringify({ ok: true, note });
         }
+        case "remember_fact": {
+          if (!memory) {
+            return JSON.stringify({ error: "Gedächtnis ist nicht verfügbar" });
+          }
+          const kategorie = category(args.kategorie);
+          const wichtigkeit = importance(args.wichtigkeit);
+          const fact = await memory.remember({
+            text: asString(args.text),
+            quelle: memorySource,
+            ...(kategorie ? { kategorie } : {}),
+            ...(wichtigkeit ? { wichtigkeit } : {}),
+          });
+          return JSON.stringify({ ok: true, fact });
+        }
+        case "update_fact": {
+          if (!memory) {
+            return JSON.stringify({ error: "Gedächtnis ist nicht verfügbar" });
+          }
+          const kategorie = category(args.kategorie);
+          const wichtigkeit = importance(args.wichtigkeit);
+          const fact = await memory.update(asString(args.id), {
+            text: asString(args.text),
+            ...(kategorie ? { kategorie } : {}),
+            ...(wichtigkeit ? { wichtigkeit } : {}),
+          });
+          return JSON.stringify({ ok: true, fact });
+        }
+        case "forget_fact": {
+          if (!memory) {
+            return JSON.stringify({ error: "Gedächtnis ist nicht verfügbar" });
+          }
+          const id = asString(args.id).trim();
+          const needle = asString(args.stichwort).trim();
+          const target = id || (await memory.search(needle))[0]?.id || "";
+          if (!target) {
+            return JSON.stringify({ error: "Nichts gefunden" });
+          }
+          const fact = await memory.forget(target);
+          return JSON.stringify({ ok: true, fact });
+        }
         default:
           return JSON.stringify({ error: `Unbekanntes Werkzeug: ${name}` });
       }
@@ -368,7 +477,13 @@ export function createBotTools(
     }
   }
 
-  return { definitions: TOOL_DEFINITIONS, execute };
+  return {
+    definitions: TOOL_DEFINITIONS,
+    execute,
+    setMemorySource(next: MemorySource) {
+      memorySource = next;
+    },
+  };
 }
 
 export async function chatWithTools(options: {
@@ -382,14 +497,17 @@ export async function chatWithTools(options: {
   maxRounds?: number;
   prior?: LlmMessage[];
   source?: UsageSource;
+  context?: string;
 }): Promise<string> {
   const timeZone = options.timeZone ?? "Europe/Berlin";
   const now = options.now ?? new Date();
+  const context = options.context?.trim() ?? "";
   // System-Prompt und Tool-Definitionen bleiben byte-gleich, damit der Cache greift.
-  // Uhrzeit und Datum stehen erst hinter der Frage.
+  // Fakten stehen hinter dem Verlauf. Uhrzeit und Datum stehen erst hinter der Frage.
   const messages: LlmMessage[] = [
     { role: "system", content: options.systemPrompt.trim() },
     ...(options.prior ?? []),
+    ...(context ? [{ role: "user" as const, content: context }] : []),
     { role: "user", content: options.userText },
     { role: "user", content: `Aktuelle Zeit: ${formatNow(now, timeZone)} (${timeZone})` },
   ];
