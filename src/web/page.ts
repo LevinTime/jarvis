@@ -208,3 +208,21 @@ export function renderHomePage(): string {
 </html>
 `;
 }
+
+export function renderMissingFrontend(): string {
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jarvis</title>
+</head>
+<body>
+  <main>
+    <h1>Frontend nicht gebaut</h1>
+    <p>Bitte <code>npm run web:build</code> ausführen und die Seite neu laden.</p>
+  </main>
+</body>
+</html>
+`;
+}

@@ -1,63 +1,43 @@
 import path from "node:path";
-import { createAssistant } from "../assistant.ts";
-import { createGrokClient, loadSystemPrompt } from "../llm.ts";
-import { loadEnv, MissingConfigError, projectRoot } from "../load-env.ts";
-import { logError, logInfo } from "../log.ts";
-import { createNoteService } from "../notes/service.ts";
-import { createTaskService } from "../tasks/service.ts";
-import { createTranscriptService } from "../transcripts/service.ts";
-import { createWebApp, startWebServer } from "./server.ts";
+import { loadEnv, projectRoot } from "../load-env.ts";
+import { logInfo } from "../log.ts";
+import { createRuntime, readBudget, readWebPort } from "../runtime.ts";
+import { startWebServer } from "./server.ts";
 
 loadEnv();
-
-function webPort(): number {
-  const raw = process.env.JARVIS_WEB_PORT?.trim() || process.env.PORT?.trim() || "3000";
-  const port = Number(raw);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`JARVIS_WEB_PORT ist ungültig: ${raw}`);
-  }
-  return port;
-}
 
 const dataDir = process.env.JARVIS_DATA_DIR ?? path.join(projectRoot, "data");
 const transcriptsDir =
   process.env.JARVIS_TRANSCRIPTS_DIR ?? path.join(projectRoot, "transcripts");
-const timeZone = process.env.TZ?.trim() || "Europe/Berlin";
-const apiKey = process.env.GROK_API_KEY?.trim() ?? "";
-const missingKey = new MissingConfigError(["GROK_API_KEY"]).message;
-
-const tasks = createTaskService({ dataDir });
-const notes = createNoteService({ dataDir });
-const transcripts = createTranscriptService({ transcriptsDir });
-await tasks.recoverStale();
-
-const assistant = apiKey
-  ? createAssistant({
-      llm: createGrokClient({
-        apiKey,
-        model: process.env.GROK_MODEL?.trim() || "grok-4",
-      }),
-      systemPrompt: await loadSystemPrompt(),
-      tasks,
-      notes,
-      transcripts,
-      timeZone,
-    })
-  : null;
-
-const app = createWebApp({
-  tasks,
-  notes,
-  reply: (message) => {
-    if (!assistant) {
-      return Promise.resolve(missingKey);
-    }
-    return assistant.reply(message);
-  },
+const runtime = await createRuntime({
+  dataDir,
+  transcriptsDir,
+  timeZone: process.env.TZ,
+  apiKey: process.env.GROK_API_KEY,
+  model: process.env.GROK_MODEL,
+  budgetUsd: readBudget(process.env.JARVIS_MONTHLY_BUDGET_USD),
+  allowedTsUser: process.env.JARVIS_ALLOWED_TS_USER,
+  frontendDist: path.join(projectRoot, "web", "dist"),
 });
-
-if (!assistant) {
-  logError(missingKey);
-}
-const started = await startWebServer(app, { port: webPort() });
+const app = runtime.app;
+const started = await startWebServer(app, { port: readWebPort() });
 logInfo(`Jarvis-Web läuft auf http://${started.host}:${started.port}`);
+logInfo("Telegram nicht verbunden. Für Bot und Web zusammen: npm start");
+
+let closing = false;
+async function shutdown(): Promise<void> {
+  if (closing) {
+    return;
+  }
+  closing = true;
+  await runtime.shutdown();
+  await started.close();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  void shutdown();
+});
+process.on("SIGTERM", () => {
+  void shutdown();
+});
