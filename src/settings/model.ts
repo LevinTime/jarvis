@@ -1,7 +1,8 @@
 export const THEME_IDS = ["midnight", "ocean", "aurora", "graphite", "light"] as const;
 export const DENSITY_IDS = ["compact", "normal", "airy"] as const;
 export const LOCALE_IDS = ["de", "en"] as const;
-export const WIDGET_KINDS = ["clock", "status", "tasks", "events", "cost", "chat", "notes", "quick", "t3"] as const;
+export const WIDGET_KINDS = ["clock", "status", "tasks", "events", "cost", "chat", "notes", "quick", "t3", "memory"] as const;
+export const COST_CHECK_IDS = ["an", "aus", "kaeufe"] as const;
 export const WIDGET_SIZES = ["s", "m", "l"] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
@@ -9,6 +10,7 @@ export type DensityId = (typeof DENSITY_IDS)[number];
 export type LocaleId = (typeof LOCALE_IDS)[number];
 export type WidgetKind = (typeof WIDGET_KINDS)[number];
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
+export type CostCheckId = (typeof COST_CHECK_IDS)[number];
 
 export type WidgetItem = {
   id: string;
@@ -28,6 +30,8 @@ export type AppSettings = {
   reduceMotion: boolean;
   haptics: boolean;
   t3Url: string;
+  costCheck: CostCheckId;
+  selfCheck: boolean;
   widgets: WidgetItem[];
 };
 
@@ -43,6 +47,7 @@ export const DEFAULT_WIDGETS: WidgetItem[] = [
   { id: "cost", kind: "cost", size: "s" },
   { id: "chat", kind: "chat", size: "s" },
   { id: "t3", kind: "t3", size: "m" },
+  { id: "memory", kind: "memory", size: "s" },
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -57,6 +62,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reduceMotion: false,
   haptics: true,
   t3Url: "",
+  costCheck: "an",
+  selfCheck: true,
   widgets: DEFAULT_WIDGETS.map((item) => ({ ...item })),
 };
 
@@ -194,6 +201,8 @@ export function normalizeSettings(input: unknown, base: AppSettings = DEFAULT_SE
     reduceMotion: bool(record.reduceMotion, "Bewegung", base.reduceMotion),
     haptics: bool(record.haptics, "Haptik", base.haptics),
     t3Url: record.t3Url === undefined ? base.t3Url : checkT3Url(typeof record.t3Url === "string" ? record.t3Url : " "),
+    costCheck: oneOf(record.costCheck, COST_CHECK_IDS, "Kosten-Check", base.costCheck),
+    selfCheck: bool(record.selfCheck, "Selbst-Check", base.selfCheck),
     widgets: widgets(record.widgets, base.widgets),
   };
 }
