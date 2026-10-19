@@ -5,10 +5,13 @@ import {
   canMirror,
   createTelegramBot,
   formatAufgaben,
+  formatMemory,
   mirrorWebTurn,
   numericChatId,
   splitTelegramText,
 } from "./bot/telegram.ts";
+import { createCorrectionStore } from "./memory/corrections.ts";
+import { createMemoryStore } from "./memory/store.ts";
 import { startReminders } from "./bot/reminders.ts";
 import { createEventBus, type EventBus } from "./events.ts";
 import {
@@ -166,6 +169,9 @@ export async function createRuntime(options: {
     file: settingsPath(options.dataDir),
     defaultT3Url,
   });
+  const memory = createMemoryStore({ dataDir: options.dataDir });
+  const corrections = createCorrectionStore({ dataDir: options.dataDir, memory });
+  await memory.seedBudgetFact();
 
   const handler = createMessageHandler({
     llm,
@@ -177,6 +183,11 @@ export async function createRuntime(options: {
     events,
     timeZone,
     replyLanguage: async () => (await settings.get()).assistantLanguage,
+    memory,
+    readTurnSettings: async () => {
+      const current = await settings.get();
+      return { costCheck: current.costCheck, selfCheck: current.selfCheck };
+    },
     onTurn: (turn) => {
       if (turn.source !== "web" || !bot || !mirror) {
         return;
@@ -217,6 +228,20 @@ export async function createRuntime(options: {
           return error instanceof Error ? error.message : String(error);
         }
       },
+      merken: async (text) => {
+        const fact = await memory.remember({ text, quelle: "telegram" });
+        return `Gemerkt: ${fact.text}`;
+      },
+      listMemory: async () => formatMemory((await memory.list()).filter((fact) => fact.aktiv)),
+      findMemory: async (query) =>
+        (await memory.search(query)).map((fact) => ({ id: fact.id, text: fact.text })),
+      forgetMemory: async (id) => {
+        const fact = await memory.forget(id);
+        return fact.text;
+      },
+      correct: async (input) => {
+        await corrections.add({ ...input, quelle: "telegram" });
+      },
     });
   }
 
@@ -240,6 +265,8 @@ export async function createRuntime(options: {
     ...(options.frontendDist ? { frontendDist: options.frontendDist } : {}),
     settings,
     t3Url: defaultT3Url,
+    memory,
+    corrections,
     reply: async (message) => {
       const turn = await handler.handleUserMessage({ text: message, source: "web" });
       const finished = await turn.done;

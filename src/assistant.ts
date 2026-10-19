@@ -16,6 +16,10 @@ import {
 import type { NoteService } from "./notes/service.ts";
 import type { TaskService } from "./tasks/service.ts";
 import type { TranscriptService } from "./transcripts/service.ts";
+import { runSelfCheck } from "./memory/check.ts";
+import { needsSelfCheck, renderMemoryContext, type MemorySource } from "./memory/model.ts";
+import type { MemoryStore } from "./memory/store.ts";
+import type { CostCheckId } from "./settings/model.ts";
 import type { UsageSource } from "./usage/types.ts";
 
 export type Assistant = {
@@ -34,6 +38,7 @@ export function createAssistant(options: {
   const tools = createBotTools(options.tasks, options.transcripts, options.notes);
   return {
     reply(userText: string) {
+      tools.setMemorySource("manuell");
       return chatWithTools({
         llm: options.llm,
         systemPrompt: options.systemPrompt,
@@ -105,6 +110,13 @@ export type FinishedTurn = {
   assistant: ChatMessage | null;
 };
 
+function memorySource(source: ChatSource): MemorySource {
+  if (source === "telegram" || source === "web") {
+    return source;
+  }
+  return "manuell";
+}
+
 function usageSource(source: ChatSource): UsageSource {
   if (source === "system") {
     return "cron";
@@ -158,8 +170,10 @@ export function createMessageHandler(options: {
   timeoutMs?: number;
   onTurn?: (turn: TurnNotice) => void | Promise<unknown>;
   replyLanguage?: () => Promise<"de" | "en"> | "de" | "en";
+  memory?: MemoryStore;
+  readTurnSettings?: () => Promise<{ costCheck: CostCheckId; selfCheck: boolean }>;
 }) {
-  const tools = createBotTools(options.tasks, options.transcripts, options.notes);
+  const tools = createBotTools(options.tasks, options.transcripts, options.notes, options.memory);
   const llm = withTimeout(options.llm, options.timeoutMs ?? 60_000);
   let chain = Promise.resolve();
 
@@ -225,7 +239,23 @@ export function createMessageHandler(options: {
             language = "de";
           }
         }
-        const reply = await chatWithTools({
+        let costCheck: CostCheckId = "an";
+        let selfCheck = false;
+        if (options.readTurnSettings) {
+          try {
+            const turnSettings = await options.readTurnSettings();
+            costCheck = turnSettings.costCheck;
+            selfCheck = turnSettings.selfCheck;
+          } catch {
+            costCheck = "an";
+            selfCheck = true;
+          }
+        }
+        const facts = options.memory ? await options.memory.relevant(stored.message.text) : [];
+        const context = renderMemoryContext(facts, costCheck);
+        const source = usageSource(input.source);
+        tools.setMemorySource(memorySource(input.source));
+        let reply = await chatWithTools({
           llm,
           systemPrompt: systemPromptFor(options.systemPrompt, language),
           userText: stored.message.text,
@@ -234,8 +264,22 @@ export function createMessageHandler(options: {
           timeZone: options.timeZone,
           now: options.now?.(),
           prior,
-          source: usageSource(input.source),
+          source,
+          ...(context ? { context } : {}),
         });
+        if (selfCheck && needsSelfCheck(reply)) {
+          try {
+            reply = await runSelfCheck({
+              llm,
+              question: stored.message.text,
+              answer: reply,
+              context,
+              source,
+            });
+          } catch (error) {
+            logError("Selbst-Check fehlgeschlagen", error);
+          }
+        }
         const savedUser = await options.messages.updateStatus(stored.message.id, "done");
         options.events.emit({ type: "message:updated", message: savedUser });
         const assistant = await options.messages.append({

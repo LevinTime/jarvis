@@ -156,7 +156,7 @@ export function createGrokClient(options: {
   }
 
   return {
-    async complete({ messages, tools, purpose, source }): Promise<LlmResult> {
+    async complete({ messages, tools, purpose, source, maxTokens: callTokens, reasoningEffort: callEffort }): Promise<LlmResult> {
       const meta = {
         model,
         source: source ?? "web",
@@ -167,8 +167,8 @@ export function createGrokClient(options: {
           {
             model,
             messages: toOpenAIMessages(messages),
-            max_tokens: maxTokens,
-            reasoning_effort: reasoningEffort,
+            max_tokens: callTokens ?? maxTokens,
+            reasoning_effort: callEffort ?? reasoningEffort,
             ...(tools.length > 0 ? { tools } : {}),
           },
           { timeout: options.timeoutMs ?? 60_000 },
