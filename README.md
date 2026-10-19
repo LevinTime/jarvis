@@ -12,7 +12,10 @@ Jarvis macht daraus Aufgaben, merkt sich offene Gespräche und erinnert daran.
 - Gesprächsprotokolle aus `transcripts/` lesen.
 - Telegram-Bot und Web-Chat nutzen dasselbe Modul `src/assistant.ts`: Nachricht rein, Werkzeuge ausführen, Antwort raus. `npm start` teilt sich dafür eine Nachrichten-Historie und einen Live-Bus.
 - Erinnerungen: fällige Aufgaben und Notizen einmal, dazu um 8:00 Europe/Berlin eine Tagesübersicht mit offenen Aufgaben und offenen Punkten.
-- JSON-Dateien (`tasks.json`, `notes.json`, `reminder-state.json`) werden atomar geschrieben. Fehlen Keys in `.env`, kommt eine klare Meldung statt eines Absturzes. Logs haben einen Zeitstempel.
+- JSON-Dateien (`tasks.json`, `notes.json`, `reminder-state.json`, `memory.json`, `corrections.json`) werden atomar geschrieben. `memory.md` entsteht daraus mit. Fehlen Keys in `.env`, kommt eine klare Meldung statt eines Absturzes. Logs haben einen Zeitstempel.
+- Gedächtnis: dauerhafte Sätze über Personen, Vorlieben, Orte, Projekte, Regeln und Korrekturen. Jarvis merkt sie mit `remember_fact`, `update_fact` und `forget_fact`. Passwörter, Tokens und Kontodaten werden nicht gespeichert. In Telegram: `/merken`, `/gedaechtnis`, `/vergiss` mit Bestätigung. In der App: Ansicht über Einstellungen und das Dashboard-Widget.
+- Kosten-Check: bei Projekt, Kauf, Abo, Dienst oder technischer Lösung hängt Jarvis einen kurzen Block an. Kein Extra-Call. Schalter in den Einstellungen: an, aus, nur bei Käufen. Keine erfundenen Preise.
+- Selbst-Check: die Regel steht im System-Prompt. Ein kurzer Prüf-Call läuft nur bei Zahlen, Terminen, Preisen oder Namen, höchstens einmal, und lässt sich abschalten. Eine falsche Antwort lässt sich in der App per langem Druck und in Telegram per 👎 oder `falsch: …` merken.
 
 ## Geplant
 
@@ -34,6 +37,7 @@ Jarvis macht daraus Aufgaben, merkt sich offene Gespräche und erinnert daran.
 - `src/usage/`           Token und geschätzte Kosten
 - `src/tasks/`           Aufgaben, Status, Wiederholung, Kalender
 - `src/notes/`           Notizen zu Personen und offenen Punkten
+- `src/memory/`          Gedächtnis, Korrekturen, Selbst-Check
 - `src/transcripts/`     Protokolle lesen
 - `src/load-env.ts`      `.env` und fehlende Keys
 - `src/log.ts`           Logs mit Zeitstempel, ohne Tokens
@@ -42,7 +46,7 @@ Jarvis macht daraus Aufgaben, merkt sich offene Gespräche und erinnert daran.
 - `prompts/system.md`    System-Prompt
 - `skills/`              vorgesehene Fähigkeiten (Wetter, Kalender)
 - `config/.env.example`  Vorlage für `.env`
-- `data/`                lokale Daten, gitignored
+- `data/`                lokale Daten, gitignored (`memory.json`, `memory.md`, `corrections.json` ebenfalls)
 - `tests/`               Tests ohne echte API-Calls
 
 ## Starten
