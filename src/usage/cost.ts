@@ -46,7 +46,7 @@ const EMPTY: UsageTotals = {
 };
 
 export function costUsd(
-  entry: Pick<UsageEntry, "model" | "promptTokens" | "completionTokens" | "ok">,
+  entry: Pick<UsageEntry, "model" | "promptTokens" | "completionTokens" | "cachedTokens" | "ok">,
 ): number {
   if (!entry.ok) {
     return 0;
@@ -55,10 +55,26 @@ export function costUsd(
   if (!price) {
     return 0;
   }
+  const prompt = Math.max(0, entry.promptTokens);
+  const cached = Math.min(Math.max(0, entry.cachedTokens ?? 0), prompt);
+  const fresh = prompt - cached;
   return (
-    (entry.promptTokens / 1_000_000) * price.input +
+    (fresh / 1_000_000) * price.input +
+    (cached / 1_000_000) * price.cachedInput +
     (entry.completionTokens / 1_000_000) * price.output
   );
+}
+
+export function budgetNotice(level: BudgetLevel, spentUsd: number, limitUsd: number): string {
+  const spent = spentUsd.toFixed(2);
+  const limit = limitUsd.toFixed(2);
+  if (level === "over") {
+    return `Monatsbudget aufgebraucht (${spent} von ${limit} USD). Jarvis antwortet weiter, die Kosten laufen darüber hinaus.`;
+  }
+  if (level === "warn") {
+    return `80 % des Monatsbudgets sind erreicht (${spent} von ${limit} USD). Jarvis antwortet weiter.`;
+  }
+  return "";
 }
 
 export function budgetLevel(spentUsd: number, limitUsd: number | null): BudgetLevel {

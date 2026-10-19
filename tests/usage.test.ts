@@ -3,9 +3,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { createGrokClient } from "../src/llm.ts";
-import { MODEL_PRICES, resetPriceWarnings } from "../src/usage/prices.ts";
-import { aggregateUsage, budgetLevel, costUsd } from "../src/usage/cost.ts";
+import { createGrokClient, readMaxTokens, readReasoningEffort } from "../src/llm.ts";
+import { DEFAULT_MONTHLY_BUDGET_USD, readBudget } from "../src/runtime.ts";
+import { MODEL_PRICES, priceFor, resetPriceWarnings } from "../src/usage/prices.ts";
+import { aggregateUsage, budgetLevel, budgetNotice, costUsd } from "../src/usage/cost.ts";
 import { createUsageStore } from "../src/usage/store.ts";
 import type { UsageEntry } from "../src/usage/types.ts";
 
@@ -43,6 +44,56 @@ test("budget levels warn at 80 percent and over at 100", () => {
   assert.equal(budgetLevel(7, 10), "ok");
   assert.equal(budgetLevel(8, 10), "warn");
   assert.equal(budgetLevel(10, 10), "over");
+  assert.equal(readBudget(undefined), DEFAULT_MONTHLY_BUDGET_USD);
+  assert.equal(readBudget(""), 15);
+  assert.equal(readBudget("0"), null);
+  assert.equal(readBudget("20"), 20);
+  assert.equal(readBudget("abc"), 15);
+  assert.equal(budgetLevel(12, 15), "warn");
+  assert.equal(budgetLevel(15, 15), "over");
+  assert.match(budgetNotice("warn", 12, 15), /80 %/);
+  assert.match(budgetNotice("warn", 12, 15), /antwortet weiter/);
+  assert.match(budgetNotice("over", 16, 15), /aufgebraucht/);
+  assert.match(budgetNotice("over", 16, 15), /darüber hinaus/);
+  assert.equal(budgetNotice("ok", 1, 15), "");
+});
+
+test("cached tokens are cheaper and aliases use the grok-4.3 price", () => {
+  resetPriceWarnings();
+  const price = MODEL_PRICES["grok-4.3"];
+  assert.ok(price);
+  assert.equal(MODEL_PRICES["grok-4"], price);
+  assert.equal(MODEL_PRICES["grok-4-fast"], price);
+  assert.equal(priceFor("grok-4.20-0309")?.cachedInput, 0.2);
+  assert.equal(priceFor("grok-4.7")?.output, 6);
+  assert.equal(
+    costUsd({
+      model: "grok-4.3",
+      promptTokens: 1_000_000,
+      completionTokens: 1_000_000,
+      cachedTokens: 400_000,
+      ok: true,
+    }),
+    (600_000 / 1_000_000) * price.input +
+      (400_000 / 1_000_000) * price.cachedInput +
+      price.output,
+  );
+  assert.equal(
+    costUsd({
+      model: "grok-4",
+      promptTokens: 100,
+      completionTokens: 0,
+      cachedTokens: 500,
+      ok: true,
+    }),
+    costUsd({
+      model: "grok-4.3",
+      promptTokens: 100,
+      completionTokens: 0,
+      cachedTokens: 100,
+      ok: true,
+    }),
+  );
 });
 
 test("aggregation keeps Berlin days, sources and failed calls out of the cost", () => {
@@ -185,4 +236,40 @@ test("createGrokClient records usage from a mocked response and from a 403", asy
   assert.equal(seen.at(-1)?.ok, false);
   assert.equal(seen.at(-1)?.error, "llm_forbidden");
   assert.equal(seen.at(-1)?.promptTokens, 0);
+});
+
+test("createGrokClient sends grok-4.3 with reasoning none and 500 max tokens", async () => {
+  let body: Record<string, unknown> | undefined;
+  const client = createGrokClient({
+    apiKey: "test-key",
+    fetch: async (input, init) => {
+      const request = input instanceof Request ? input : null;
+      const raw = init?.body ?? (request ? await request.clone().text() : "");
+      body = JSON.parse(String(raw)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          id: "1",
+          object: "chat.completion",
+          created: 0,
+          model: "grok-4.3",
+          choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 3, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 2 } },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    },
+  });
+  const result = await client.complete({
+    messages: [{ role: "user", content: "hi" }],
+    tools: [],
+  });
+  assert.equal(result.content, "ok");
+  assert.equal(body?.model, "grok-4.3");
+  assert.equal(body?.max_tokens, 500);
+  assert.equal(body?.reasoning_effort, "none");
+  assert.equal(readReasoningEffort("low"), "low");
+  assert.equal(readReasoningEffort("nope"), "none");
+  assert.equal(readMaxTokens(undefined), 500);
+  assert.equal(readMaxTokens("800"), 800);
+  assert.equal(readMaxTokens("0"), 500);
 });

@@ -30,7 +30,7 @@ Baseline vor den Änderungen (2026-10-19): `npm test` 58 grün, `npm run typeche
 | Kalender-Bibliothek `@schedule-x/react` | — | Eigene Monats-/Wochenansicht. Schedule-X ist für den Desktop gebaut, zieht viel JS und passt schlecht zum Hochformat. Die eigene Ansicht nutzt dieselben Berlin-Regeln wie `nextOccurrence`. |
 | Vitest | Ein Testlaufer (`node:test`) ist schon da | Gesten und Store sind reines TypeScript und laufen im bestehenden `npm test`. Kein zweiter Runner. |
 | Live-Sync | Bot und Web sind zwei Prozesse | `npm start` fährt beide in einem Prozess mit gemeinsamem Bus. Einzeln bleiben sie lauffähig, teilen dann aber nur die JSON-Dateien, nicht den Speicher-Bus. |
-| Preistabelle | xAI-Preise ändern sich | Platzhalter in `src/usage/prices.ts` mit TODO. Unbekanntes Modell: Kosten 0 und Warnung. |
+| Preistabelle | xAI-Preise ändern sich | Tabelle in `src/usage/prices.ts`, Stand 19.10.2026. Cache-Tokens extra. Unbekanntes Modell: Kosten 0 und Warnung. |
 
 ## Design
 
@@ -66,4 +66,4 @@ CLI-Befehle, Transkripte, Reminder-Texte, System-Prompt, die fünf bestehenden J
 - Kosten sind eine Ebene über „Heute“, keine fünfte Wisch-Seite. Die Zeile „nach unten für die Kosten“ öffnet sie. Die Begrüßung selbst bleibt horizontal wischbar.
 - Aktualisieren ist ein Button auf dem Dashboard. Die App hat kein Pull-to-refresh.
 - Live-Gleichstand von Telegram und App gibt es nur mit `npm start`. `npm run bot` und `npm run web` einzeln teilen nur die JSON-Dateien, nicht den Event-Bus. Beides gleichzeitig starten würde die Erinnerungen doppelt schicken.
-- Die Preise in `src/usage/prices.ts` sind Schätzwerte. Die App sagt das auf der Kosten-Seite.
+- Die Preise in `src/usage/prices.ts` sind die veröffentlichte Liste vom 19.10.2026, nicht die Rechnung. Die App sagt das auf der Kosten-Seite.

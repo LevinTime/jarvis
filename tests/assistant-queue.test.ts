@@ -3,7 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { createMessageHandler } from "../src/assistant.ts";
+import { createMessageHandler, toContext } from "../src/assistant.ts";
+import type { ChatMessage } from "../src/messages/store.ts";
 import type { LlmClient, LlmResult } from "../src/bot/tools.ts";
 import { createEventBus } from "../src/events.ts";
 import { createMessageStore } from "../src/messages/store.ts";
@@ -134,4 +135,30 @@ test("the same clientId is not processed twice", async () => {
   } finally {
     await ctx.cleanup();
   }
+});
+
+test("context keeps the last 8 messages or about 2000 tokens", () => {
+  const many: ChatMessage[] = Array.from({ length: 20 }, (_, index) => ({
+    id: String(index),
+    ts: "2026-10-19T10:00:00.000Z",
+    source: "web",
+    role: index % 2 === 0 ? "user" : "assistant",
+    text: "x".repeat(400),
+    status: "done",
+  }));
+  const eight = toContext(many);
+  assert.equal(eight.length, 8);
+  assert.equal(eight[0]?.content, "x".repeat(400));
+
+  const huge: ChatMessage[] = Array.from({ length: 6 }, (_, index) => ({
+    id: `h${index}`,
+    ts: "2026-10-19T10:00:00.000Z",
+    source: "web",
+    role: "user",
+    text: "y".repeat(4000),
+    status: "done",
+  }));
+  const budget = toContext(huge);
+  assert.equal(budget.length, 2);
+  assert.equal(budget.at(-1)?.content?.startsWith("y"), true);
 });

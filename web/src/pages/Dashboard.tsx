@@ -111,8 +111,8 @@ export function Dashboard({
         <div className={`banner ${budget.level === "over" ? "bad" : "warn"}`}>
           <span>
             {budget.level === "over"
-              ? "Das Monatsbudget ist aufgebraucht."
-              : "80 % des Monatsbudgets sind erreicht."}
+              ? "Monatsbudget aufgebraucht. Jarvis antwortet weiter, die Kosten laufen darüber hinaus."
+              : "80 % des Monatsbudgets sind erreicht. Jarvis antwortet weiter."}
           </span>
           <button type="button" className="text-btn ghost" onClick={onUsage}>
             Kosten

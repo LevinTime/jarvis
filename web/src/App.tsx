@@ -195,6 +195,9 @@ export function App() {
     }
     if (event.type === "usage:new") {
       setUsageStamp((value) => value + 1);
+      void api<StatusResponse>("/api/status")
+        .then((next) => setStatus(next))
+        .catch(() => undefined);
     }
   }, []);
 

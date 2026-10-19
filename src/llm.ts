@@ -4,8 +4,33 @@ import OpenAI from "openai";
 import type { LlmClient, LlmMessage, LlmResult, ToolCall } from "./bot/tools.ts";
 import { germanLlmError } from "./llm-error.ts";
 import { projectRoot } from "./load-env.ts";
-import { logError } from "./log.ts";
+import { logError, logInfo } from "./log.ts";
 import type { UsageNotice } from "./usage/types.ts";
+
+export const DEFAULT_GROK_MODEL = "grok-4.3";
+export const DEFAULT_MAX_TOKENS = 500;
+
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export type JarvisReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
+export function readReasoningEffort(raw: string | undefined): JarvisReasoningEffort {
+  const value = raw?.trim().toLowerCase() || "none";
+  if ((REASONING_EFFORTS as readonly string[]).includes(value)) {
+    return value as JarvisReasoningEffort;
+  }
+  logInfo("GROK_REASONING_EFFORT ist unbekannt. Es gilt none.");
+  return "none";
+}
+
+export function readMaxTokens(raw: string | undefined): number {
+  const text = raw?.trim() || String(DEFAULT_MAX_TOKENS);
+  const value = Number(text);
+  if (!Number.isInteger(value) || value < 1 || value > 32_000) {
+    logInfo(`GROK_MAX_TOKENS ist ungültig. Es gilt ${DEFAULT_MAX_TOKENS}.`);
+    return DEFAULT_MAX_TOKENS;
+  }
+  return value;
+}
 
 export async function loadSystemPrompt(): Promise<string> {
   return readFile(path.join(projectRoot, "prompts", "system.md"), "utf8");
@@ -105,6 +130,8 @@ export function createGrokClient(options: {
   baseURL?: string;
   timeoutMs?: number;
   fetch?: typeof fetch;
+  reasoningEffort?: JarvisReasoningEffort;
+  maxTokens?: number;
   onUsage?: (notice: UsageNotice) => void | Promise<void>;
 }): LlmClient {
   const client = new OpenAI({
@@ -113,7 +140,9 @@ export function createGrokClient(options: {
     timeout: options.timeoutMs ?? 60_000,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
-  const model = options.model?.trim() || "grok-4";
+  const model = options.model?.trim() || DEFAULT_GROK_MODEL;
+  const reasoningEffort = options.reasoningEffort ?? "none";
+  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
 
   async function notify(notice: UsageNotice): Promise<void> {
     if (!options.onUsage) {
@@ -138,6 +167,8 @@ export function createGrokClient(options: {
           {
             model,
             messages: toOpenAIMessages(messages),
+            max_tokens: maxTokens,
+            reasoning_effort: reasoningEffort,
             ...(tools.length > 0 ? { tools } : {}),
           },
           { timeout: options.timeoutMs ?? 60_000 },

@@ -63,14 +63,16 @@ copy config\.env.example .env
 | Variable | Wofür |
 |---|---|
 | `GROK_API_KEY` | Chat über Grok. Ohne Key startet das Web trotzdem, der Chat sagt Bescheid. Der Bot startet nicht. |
-| `GROK_MODEL` | Modell, Standard `grok-4` |
+| `GROK_MODEL` | Modell, Standard `grok-4.3`. `grok-4` und `grok-4-fast` zählt die Preistabelle wie `grok-4.3`. |
+| `GROK_REASONING_EFFORT` | Denk-Aufwand, Standard `none`. |
+| `GROK_MAX_TOKENS` | Obergrenze einer Antwort, Standard `500`. |
 | `TELEGRAM_BOT_TOKEN` | Bot-Token von BotFather. Pflicht für `npm run bot`. |
 | `ALLOWED_CHAT_ID` | Nur dieser Chat darf den Bot nutzen. Pflicht für `npm run bot`. |
 | `TZ` | Zeitzone, Standard `Europe/Berlin` |
 | `JARVIS_DATA_DIR` | Optional, Standard `data/` |
 | `JARVIS_TRANSCRIPTS_DIR` | Optional, Standard `transcripts/` |
 | `JARVIS_WEB_PORT` oder `PORT` | Web-Port, Standard `3000`. Der Server bindet nur an `127.0.0.1`. |
-| `JARVIS_MONTHLY_BUDGET_USD` | Optional. Monatsbudget in US-Dollar. Ab 80 Prozent und ab 100 Prozent warnt die App. |
+| `JARVIS_MONTHLY_BUDGET_USD` | Monatsbudget in US-Dollar, Standard `15`. Ab 80 Prozent Warnung, ab 100 Prozent Hinweis in App und Telegram. `0` schaltet es aus. Blockiert nie. |
 | `JARVIS_ALLOWED_TS_USER` | Optional. Tailscale-Login. Siehe unten. |
 | `OLLAMA_URL` | Reserviert, noch ungenutzt |
 | `WEATHER_LOCATION` | Reserviert, noch ungenutzt |

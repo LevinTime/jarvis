@@ -16,6 +16,8 @@ const runtime = await createRuntime({
   apiKey: process.env.GROK_API_KEY,
   model: process.env.GROK_MODEL,
   budgetUsd: readBudget(process.env.JARVIS_MONTHLY_BUDGET_USD),
+  reasoningEffort: process.env.GROK_REASONING_EFFORT,
+  maxTokens: process.env.GROK_MAX_TOKENS,
   allowedTsUser: process.env.JARVIS_ALLOWED_TS_USER,
   frontendDist: path.join(projectRoot, "web", "dist"),
 });

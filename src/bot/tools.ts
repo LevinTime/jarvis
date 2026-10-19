@@ -1,6 +1,6 @@
 import type { NoteService } from "../notes/service.ts";
-import type { TaskService } from "../tasks/service.ts";
-import type { TranscriptService } from "../transcripts/service.ts";
+import type { Task, TaskService } from "../tasks/service.ts";
+import type { Transcript, TranscriptService } from "../transcripts/service.ts";
 import type { UsagePurpose, UsageSource } from "../usage/types.ts";
 
 export type ToolDefinition = {
@@ -180,6 +180,103 @@ function asArgs(value: unknown): Record<string, unknown> {
   return {};
 }
 
+const TOOL_RESULT_CHARS = 1600;
+const DEFAULT_MAX_ROUNDS = 4;
+
+function clip(text: string, max: number): string {
+  if (text.length <= max) {
+    return text;
+  }
+  return `${text.slice(0, max)}…`;
+}
+
+function packItems(label: string, items: unknown[], limit = TOOL_RESULT_CHARS): string {
+  const kept: unknown[] = [];
+  for (const item of items) {
+    const omitted = items.length - kept.length - 1;
+    const candidate =
+      omitted > 0
+        ? { [label]: [...kept, item], omitted, truncated: true }
+        : { [label]: [...kept, item] };
+    if (JSON.stringify(candidate).length > limit && kept.length > 0) {
+      break;
+    }
+    kept.push(item);
+  }
+  const omitted = items.length - kept.length;
+  const body =
+    omitted > 0 ? { [label]: kept, omitted, truncated: true } : { [label]: kept };
+  const raw = JSON.stringify(body);
+  if (raw.length <= limit) {
+    return raw;
+  }
+  return JSON.stringify({
+    truncated: true,
+    note: "Ergebnis gekürzt.",
+    preview: raw.slice(0, Math.max(0, limit - 80)),
+  });
+}
+
+function taskListPayload(tasks: Task[]): string {
+  return packItems(
+    "tasks",
+    tasks.map((task) => ({
+      id: task.id,
+      titel: clip(task.titel, 120),
+      status: task.status,
+      ...(task.faelligAm ? { faelligAm: task.faelligAm } : {}),
+      ...(task.wiederholung ? { wiederholung: task.wiederholung } : {}),
+    })),
+  );
+}
+
+function transcriptPayload(transcript: Transcript): string {
+  const entries = transcript.entries.map((entry) => ({
+    uhrzeit: entry.uhrzeit,
+    sprecher: entry.sprecher,
+    text: clip(entry.text, 400),
+  }));
+  const kept: typeof entries = [];
+  for (const entry of entries) {
+    const omitted = entries.length - kept.length - 1;
+    const candidate = {
+      transcript: {
+        id: transcript.id,
+        title: transcript.title,
+        entries: [...kept, entry],
+        ...(omitted > 0 ? { omitted, truncated: true } : {}),
+      },
+    };
+    if (JSON.stringify(candidate).length > TOOL_RESULT_CHARS && kept.length > 0) {
+      break;
+    }
+    kept.push(entry);
+  }
+  const omitted = entries.length - kept.length;
+  const body = {
+    transcript: {
+      id: transcript.id,
+      title: transcript.title,
+      entries: kept,
+      ...(omitted > 0 ? { omitted, truncated: true } : {}),
+    },
+  };
+  const raw = JSON.stringify(body);
+  if (raw.length <= TOOL_RESULT_CHARS) {
+    return raw;
+  }
+  return JSON.stringify({
+    transcript: {
+      id: transcript.id,
+      title: transcript.title,
+      entries: [],
+      omitted: entries.length,
+      truncated: true,
+    },
+    preview: raw.slice(0, Math.max(0, TOOL_RESULT_CHARS - 80)),
+  });
+}
+
 export function formatNow(now: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("de-DE", {
     timeZone,
@@ -216,8 +313,7 @@ export function createBotTools(
           return JSON.stringify({ ok: true, task });
         }
         case "list_tasks": {
-          const listed = await tasks.list();
-          return JSON.stringify({ tasks: listed });
+          return taskListPayload(await tasks.list());
         }
         case "complete_task": {
           const before = new Set((await tasks.list()).map((item) => item.id));
@@ -236,8 +332,7 @@ export function createBotTools(
           });
         }
         case "get_transcript": {
-          const transcript = await transcripts.get(asString(args.id));
-          return JSON.stringify({ transcript });
+          return transcriptPayload(await transcripts.get(asString(args.id)));
         }
         case "add_note": {
           if (!notes) {
@@ -290,15 +385,15 @@ export async function chatWithTools(options: {
 }): Promise<string> {
   const timeZone = options.timeZone ?? "Europe/Berlin";
   const now = options.now ?? new Date();
+  // System-Prompt und Tool-Definitionen bleiben byte-gleich, damit der Cache greift.
+  // Uhrzeit und Datum stehen erst hinter der Frage.
   const messages: LlmMessage[] = [
-    {
-      role: "system",
-      content: `${options.systemPrompt.trim()}\n\nAktuelle Zeit: ${formatNow(now, timeZone)} (${timeZone})`,
-    },
+    { role: "system", content: options.systemPrompt.trim() },
     ...(options.prior ?? []),
     { role: "user", content: options.userText },
+    { role: "user", content: `Aktuelle Zeit: ${formatNow(now, timeZone)} (${timeZone})` },
   ];
-  const maxRounds = options.maxRounds ?? 8;
+  const maxRounds = options.maxRounds ?? DEFAULT_MAX_ROUNDS;
 
   for (let round = 0; round < maxRounds; round++) {
     const result = await options.llm.complete({

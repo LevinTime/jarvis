@@ -18,6 +18,8 @@ export async function startJarvis(): Promise<void> {
     telegramToken: process.env.TELEGRAM_BOT_TOKEN,
     allowedChatId: process.env.ALLOWED_CHAT_ID,
     budgetUsd: readBudget(process.env.JARVIS_MONTHLY_BUDGET_USD),
+    reasoningEffort: process.env.GROK_REASONING_EFFORT,
+    maxTokens: process.env.GROK_MAX_TOKENS,
     allowedTsUser: process.env.JARVIS_ALLOWED_TS_USER,
     frontendDist: path.join(projectRoot, "web", "dist"),
   });

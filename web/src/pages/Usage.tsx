@@ -79,6 +79,11 @@ export default function UsagePage({ stamp }: { stamp: number }) {
             ) : (
               <p>Kein Monatsbudget. Dafür gibt es JARVIS_MONTHLY_BUDGET_USD.</p>
             )}
+            {report.budget.level === "over" ? (
+              <p>Monatsbudget aufgebraucht. Jarvis antwortet weiter, die Kosten laufen darüber hinaus.</p>
+            ) : report.budget.level === "warn" ? (
+              <p>80 % des Monatsbudgets sind erreicht. Jarvis antwortet weiter.</p>
+            ) : null}
             <p>Monat bisher {usd(report.month.costUsd)} · heute {usd(report.today.costUsd)}</p>
           </section>
           <section className="card">

@@ -11,7 +11,13 @@ import {
 } from "./bot/telegram.ts";
 import { startReminders } from "./bot/reminders.ts";
 import { createEventBus, type EventBus } from "./events.ts";
-import { createGrokClient, loadSystemPrompt } from "./llm.ts";
+import {
+  createGrokClient,
+  DEFAULT_GROK_MODEL,
+  loadSystemPrompt,
+  readMaxTokens,
+  readReasoningEffort,
+} from "./llm.ts";
 import { projectRoot } from "./load-env.ts";
 import { logError, logInfo } from "./log.ts";
 import { createMessageStore, type MessageStore } from "./messages/store.ts";
@@ -19,19 +25,26 @@ import { createNoteService, type NoteService } from "./notes/service.ts";
 import { observeNotes, observeTasks } from "./observe.ts";
 import { createTaskService, type TaskService } from "./tasks/service.ts";
 import { createTranscriptService, type TranscriptService } from "./transcripts/service.ts";
+import { budgetNotice, type BudgetLevel } from "./usage/cost.ts";
 import { createUsageStore, type UsageStore } from "./usage/store.ts";
 import type { UsageNotice } from "./usage/types.ts";
 import { createWebApp, type WebAppOptions } from "./web/server.ts";
 import type { LlmClient } from "./bot/tools.ts";
 import { germanLlmError } from "./llm-error.ts";
 
+export const DEFAULT_MONTHLY_BUDGET_USD = 15;
+
 export function readBudget(raw: string | undefined): number | null {
   const text = raw?.trim() ?? "";
   if (!text) {
-    return null;
+    return DEFAULT_MONTHLY_BUDGET_USD;
   }
   const value = Number(text);
   if (!Number.isFinite(value) || value < 0) {
+    logInfo(`JARVIS_MONTHLY_BUDGET_USD ist ungültig. Es gilt ${DEFAULT_MONTHLY_BUDGET_USD}.`);
+    return DEFAULT_MONTHLY_BUDGET_USD;
+  }
+  if (value === 0) {
     return null;
   }
   return value;
@@ -76,6 +89,8 @@ export async function createRuntime(options: {
   telegramToken?: string;
   allowedChatId?: string;
   budgetUsd?: number | null;
+  reasoningEffort?: string;
+  maxTokens?: string;
   allowedTsUser?: string;
   version?: string;
   frontendDist?: string;
@@ -95,14 +110,25 @@ export async function createRuntime(options: {
 
   let lastLlmError: string | undefined;
   const apiKey = options.apiKey?.trim() ?? "";
+  let toldApp: BudgetLevel = "none";
+  let toldTelegram: BudgetLevel = "none";
+  let considerBudget = async (): Promise<void> => {};
+
   const llm = apiKey
     ? createGrokClient({
         apiKey,
-        model: options.model?.trim() || "grok-4",
+        model: options.model?.trim() || DEFAULT_GROK_MODEL,
+        reasoningEffort: readReasoningEffort(options.reasoningEffort),
+        maxTokens: readMaxTokens(options.maxTokens),
         onUsage: async (notice: UsageNotice) => {
           lastLlmError = notice.ok ? undefined : germanLlmError({ code: notice.error ?? "llm_error" }).message;
           const entry = await usage.append(notice);
           events.emit({ type: "usage:new", entry });
+          try {
+            await considerBudget();
+          } catch (error) {
+            logError("Budget-Hinweis fehlgeschlagen", error);
+          }
         },
       })
     : missingKeyLlm();
@@ -251,9 +277,49 @@ export async function createRuntime(options: {
         logInfo(`Telegram verbunden${info.username ? ` als @${info.username}` : ""}.`);
         publishStatus();
         startReminderLoop();
+        void considerBudget().catch((error: unknown) => {
+          logError("Budget-Hinweis fehlgeschlagen", error);
+        });
       },
     });
   }
+
+  considerBudget = async () => {
+    const report = await usage.report("month");
+    const level = report.budget.level;
+    if (level !== "warn" && level !== "over") {
+      toldApp = level;
+      toldTelegram = level;
+      return;
+    }
+    const limit = report.budget.limitUsd ?? 0;
+    const text = budgetNotice(level, report.budget.spentUsd, limit);
+    if (!text) {
+      return;
+    }
+    if (toldApp !== level && toldApp !== "over") {
+      try {
+        await handler.recordSystem(text);
+        toldApp = level;
+        logInfo(text);
+      } catch (error) {
+        logError("Budget-Hinweis nicht gespeichert", error);
+      }
+    }
+    if (!bot || !mirror || toldTelegram === level || toldTelegram === "over") {
+      return;
+    }
+    try {
+      const chatId = numericChatId(allowedChatId);
+      for (const part of splitTelegramText(text)) {
+        await bot.api.sendMessage(chatId, part);
+      }
+      toldTelegram = level;
+    } catch (error) {
+      logError("Budget-Hinweis an Telegram fehlgeschlagen", error);
+    }
+  };
+  await considerBudget();
 
   async function shutdown(): Promise<void> {
     reminders?.stop();

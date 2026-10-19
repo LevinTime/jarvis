@@ -47,12 +47,16 @@ export function createAssistant(options: {
   };
 }
 
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
 export function toContext(
   messages: ChatMessage[],
-  options: { maxMessages?: number; maxChars?: number } = {},
+  options: { maxMessages?: number; maxTokens?: number } = {},
 ): LlmMessage[] {
-  const maxMessages = options.maxMessages ?? 30;
-  const maxChars = options.maxChars ?? 12_000;
+  const maxMessages = options.maxMessages ?? 8;
+  const maxTokens = options.maxTokens ?? 2_000;
   const usable = messages.filter((message) => {
     if (message.status === "pending") {
       return false;
@@ -63,7 +67,7 @@ export function toContext(
     return message.role === "user" || message.role === "assistant";
   });
   const selected: ChatMessage[] = [];
-  let chars = 0;
+  let tokens = 0;
   for (let index = usable.length - 1; index >= 0; index -= 1) {
     const message = usable[index];
     if (!message) {
@@ -72,10 +76,11 @@ export function toContext(
     if (selected.length >= maxMessages) {
       break;
     }
-    if (chars + message.text.length > maxChars && selected.length > 0) {
+    const next = estimateTokens(message.text);
+    if (tokens + next > maxTokens && selected.length > 0) {
       break;
     }
-    chars += message.text.length;
+    tokens += next;
     selected.push(message);
   }
   selected.reverse();

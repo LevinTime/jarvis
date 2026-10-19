@@ -10,6 +10,7 @@ import {
   chatWithTools,
   createBotTools,
   type LlmClient,
+  type LlmMessage,
   type LlmResult,
 } from "../src/bot/tools.ts";
 
@@ -256,6 +257,67 @@ test("list_tasks after complete_task returns the erledigt status", async () => {
       tasks: Array<{ status: string }>;
     };
     assert.equal(listedDone.tasks[0]?.status, "erledigt");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("the clock stays out of the system prompt and tool rounds stop at 4", async () => {
+  const seen: LlmMessage[][] = [];
+  const llm: LlmClient = {
+    async complete(input) {
+      seen.push(input.messages.map((message) => ({ ...message })));
+      return { content: null, tool_calls: [{ id: "1", name: "list_tasks", arguments: {} }] };
+    },
+  };
+  const reply = await chatWithTools({
+    llm,
+    systemPrompt: "Du bist Jarvis.\n",
+    userText: "Was steht an?",
+    tools: [],
+    execute: async () => "{}",
+    now: new Date("2026-10-19T18:00:00+02:00"),
+    timeZone: "Europe/Berlin",
+  });
+  assert.equal(reply, "Zu viele Werkzeug-Aufrufe, ich breche ab.");
+  assert.equal(seen.length, 4);
+  const system = seen[0]?.[0];
+  assert.equal(system?.role, "system");
+  assert.equal(system && "content" in system ? system.content : "", "Du bist Jarvis.");
+  const clock = seen[0]?.at(-1);
+  assert.equal(clock?.role, "user");
+  assert.match(clock && "content" in clock ? clock.content : "", /^Aktuelle Zeit:/);
+});
+
+test("long task lists and transcripts are shortened", async () => {
+  const { tools, transcriptsDir, cleanup } = await withTools();
+  try {
+    for (let index = 0; index < 40; index += 1) {
+      await tools.execute("add_task", {
+        titel: `Aufgabe ${index} ${"x".repeat(80)}`,
+        aufgabe: "y".repeat(400),
+      });
+    }
+    const listed = await tools.execute("list_tasks", {});
+    assert.ok(listed.length <= 1600);
+    const parsed = JSON.parse(listed) as { truncated?: boolean; tasks: unknown[] };
+    assert.equal(parsed.truncated, true);
+    assert.ok(parsed.tasks.length < 40);
+
+    const rows = Array.from(
+      { length: 30 },
+      (_, index) => `| 10:${String(index).padStart(2, "0")} | Levin | ${"z".repeat(300)} |`,
+    ).join("\n");
+    await writeFile(
+      path.join(transcriptsDir, "long.md"),
+      `# Lang\n\n| Uhrzeit | Sprecher | Text |\n|---|---|---|\n${rows}\n`,
+      "utf8",
+    );
+    const got = await tools.execute("get_transcript", { id: "long" });
+    assert.ok(got.length <= 1600);
+    const body = JSON.parse(got) as { transcript: { truncated?: boolean; entries: unknown[] } };
+    assert.equal(body.transcript.truncated, true);
+    assert.ok(body.transcript.entries.length < 30);
   } finally {
     await cleanup();
   }

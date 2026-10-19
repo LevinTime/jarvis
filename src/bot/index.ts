@@ -18,6 +18,8 @@ async function main(): Promise<void> {
     telegramToken: env.TELEGRAM_BOT_TOKEN,
     allowedChatId: env.ALLOWED_CHAT_ID,
     budgetUsd: readBudget(process.env.JARVIS_MONTHLY_BUDGET_USD),
+    reasoningEffort: process.env.GROK_REASONING_EFFORT,
+    maxTokens: process.env.GROK_MAX_TOKENS,
   });
   await runtime.startTelegram();
 }
