@@ -3,17 +3,27 @@ import { berlinParts, bucketTask, type TaskBucket } from "@jarvis/dates.ts";
 import { dragAxis, todoSwipeAction } from "@jarvis/gesture.ts";
 import { clock, localInput, repeatLabel } from "../format.ts";
 import type { Task, TaskStatus } from "../types.ts";
+import { useI18n } from "../i18n/index.ts";
 import { Empty, Sheet, Skeleton, pulse } from "../ui.tsx";
 
-const ORDER: Array<{ id: TaskBucket; title: string }> = [
-  { id: "overdue", title: "Überfällig" },
-  { id: "today", title: "Heute" },
-  { id: "soon", title: "Demnächst" },
-  { id: "undated", title: "Ohne Datum" },
-  { id: "done", title: "Erledigt" },
-];
+const ORDER: TaskBucket[] = ["overdue", "today", "soon", "undated", "done"];
 
 const STATUSES: TaskStatus[] = ["offen", "in Arbeit", "erledigt", "fehlgeschlagen"];
+
+function bucketTitle(bucket: TaskBucket, tr: (key: string) => string): string {
+  switch (bucket) {
+    case "overdue":
+      return tr("tasks.overdue");
+    case "today":
+      return tr("tasks.today");
+    case "soon":
+      return tr("tasks.soon");
+    case "undated":
+      return tr("tasks.undated");
+    case "done":
+      return tr("tasks.done");
+  }
+}
 
 export function Todos({
   tasks,
@@ -32,6 +42,7 @@ export function Todos({
   onPatch: (id: string, patch: { titel?: string; aufgabe?: string; faelligAm?: string | null; wiederholung?: string | null; status?: TaskStatus }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
+  const t = useI18n();
   const today = berlinParts(new Date()).key;
   const [doneOpen, setDoneOpen] = useState(false);
   const [titel, setTitel] = useState("");
@@ -71,7 +82,7 @@ export function Todos({
       setRepeat("");
       pulse();
     } catch (caught) {
-      setFormError(caught instanceof Error ? caught.message : "Anlegen fehlgeschlagen");
+      setFormError(caught instanceof Error ? caught.message : t("tasks.failAdd"));
     }
   }
 
@@ -86,11 +97,11 @@ export function Todos({
     <div>
       <header className="top">
         <div>
-          <p className="eyebrow">Aufgaben</p>
-          <h1>Was ansteht</h1>
+          <p className="eyebrow">{t("tasks.kicker")}</p>
+          <h1>{t("tasks.title")}</h1>
         </div>
-        <button type="button" className="icon-btn" onClick={onRefresh} aria-label="Aktualisieren">
-          Neu
+        <button type="button" className="icon-btn" onClick={onRefresh} aria-label={t("common.refresh")}>
+          {t("common.refresh")}
         </button>
       </header>
       {error ? <div className="banner bad" role="alert">{error}</div> : null}
@@ -103,41 +114,41 @@ export function Todos({
         }}
       >
         <label className="field">
-          <span>Neu</span>
-          <input value={titel} onChange={(event) => setTitel(event.target.value)} placeholder="Hühner füttern" maxLength={200} />
+          <span>{t("tasks.new")}</span>
+          <input value={titel} onChange={(event) => setTitel(event.target.value)} placeholder={t("tasks.ph")} maxLength={200} />
         </label>
         <label className="field">
-          <span>Fällig</span>
+          <span>{t("tasks.due")}</span>
           <input type="datetime-local" value={due} onChange={(event) => setDue(event.target.value)} />
         </label>
         <label className="field">
-          <span>Wiederholung</span>
+          <span>{t("tasks.repeat")}</span>
           <select value={repeat} onChange={(event) => setRepeat(event.target.value)}>
-            <option value="">einmal</option>
-            <option value="taeglich">täglich</option>
-            <option value="woechentlich">wöchentlich</option>
+            <option value="">{t("common.once")}</option>
+            <option value="taeglich">{t("common.daily")}</option>
+            <option value="woechentlich">{t("common.weekly")}</option>
           </select>
         </label>
-        <button type="submit" className="text-btn">Hinzufügen</button>
+        <button type="submit" className="text-btn">{t("tasks.add")}</button>
         {formError ? <p className="muted" role="alert">{formError}</p> : null}
       </form>
       {loading && tasks.length === 0 ? <Skeleton /> : null}
       {!loading && tasks.length === 0 ? (
-        <Empty title="Noch keine Aufgaben" text="Sag Jarvis einfach, was ansteht." />
+        <Empty title={t("tasks.emptyTitle")} text={t("tasks.emptyBody")} />
       ) : null}
       {ORDER.map((group) => {
-        const list = groups.get(group.id) ?? [];
+        const list = groups.get(group) ?? [];
         if (list.length === 0) {
           return null;
         }
-        const collapsed = group.id === "done" && !doneOpen;
+        const collapsed = group === "done" && !doneOpen;
         return (
-          <section className="group" key={group.id}>
+          <section className="group" key={group}>
             <header>
-              <h2>{group.title}</h2>
-              {group.id === "done" ? (
+              <h2>{bucketTitle(group, t)}</h2>
+              {group === "done" ? (
                 <button type="button" className="text-btn ghost" onClick={() => setDoneOpen((open) => !open)} aria-expanded={!collapsed}>
-                  {collapsed ? `${list.length} zeigen` : "einklappen"}
+                  {collapsed ? t("tasks.show", { count: list.length }) : t("tasks.hide")}
                 </button>
               ) : (
                 <span className="muted">{list.length}</span>
@@ -158,7 +169,7 @@ export function Todos({
           </section>
         );
       })}
-      <Sheet open={Boolean(editing)} title="Aufgabe" onClose={() => setEditing(null)}>
+      <Sheet open={Boolean(editing)} title={t("tasks.sheet")} onClose={() => setEditing(null)}>
         {editing ? (
           <EditForm
             task={editing}
@@ -173,7 +184,7 @@ export function Todos({
       </Sheet>
       {toast ? (
         <div className="toast" role="status">
-          <span>Gelöscht: {toast.titel}</span>
+          <span>{t("tasks.deleted", { title: toast.titel })}</span>
           <button
             type="button"
             className="text-btn ghost"
@@ -187,7 +198,7 @@ export function Todos({
               });
             }}
           >
-            Rückgängig
+            {t("tasks.undo")}
           </button>
         </div>
       ) : null}
@@ -206,72 +217,83 @@ function TodoRow({
   onDone: () => void;
   onDelete: () => void;
 }) {
+  const t = useI18n();
   const [dx, setDx] = useState(0);
   const start = useRef<{ x: number; y: number; pointer: number } | null>(null);
   const dragged = useRef(false);
   return (
-    <div
-      className="row"
-      data-no-swipe
-      style={{ transform: dx ? `translateX(${dx}px)` : undefined, background: dx > 24 ? "rgba(142,215,176,0.16)" : dx < -24 ? "rgba(240,139,124,0.16)" : undefined }}
-      onPointerDown={(event) => {
-        start.current = { x: event.clientX, y: event.clientY, pointer: event.pointerId };
-        dragged.current = false;
-      }}
-      onPointerMove={(event) => {
-        if (!start.current || event.pointerId !== start.current.pointer) {
-          return;
-        }
-        const next = event.clientX - start.current.x;
-        const dy = event.clientY - start.current.y;
-        const axis = dragAxis(next, dy);
-        if (axis === "y") {
-          setDx(0);
-          return;
-        }
-        if (axis === "x") {
-          dragged.current = true;
-          setDx(Math.max(-140, Math.min(140, next)));
-        }
-      }}
-      onPointerUp={() => {
-        const action = todoSwipeAction(dx);
-        setDx(0);
-        start.current = null;
-        if (action === "done") {
-          onDone();
-        } else if (action === "delete") {
-          onDelete();
-        }
-      }}
-      onPointerCancel={() => {
-        setDx(0);
-        start.current = null;
-      }}
-    >
-      <button type="button" className={`check ${task.status === "erledigt" ? "on" : ""}`} aria-label={task.status === "erledigt" ? "Wieder öffnen" : "Erledigen"} onClick={onDone}>
-        {task.status === "erledigt" ? "✓" : ""}
-      </button>
-      <button
-        type="button"
-        className="body"
-        onClick={() => {
-          if (!dragged.current) {
-            onOpen();
+    <div className="swipe" data-no-swipe>
+      <div className="swipe-action done">{t("tasks.swipeDone")}</div>
+      <div className="swipe-action delete">{t("tasks.swipeDelete")}</div>
+      <div
+        className="row"
+        style={{ transform: dx ? `translateX(${dx}px)` : undefined }}
+        onPointerDown={(event) => {
+          start.current = { x: event.clientX, y: event.clientY, pointer: event.pointerId };
+          dragged.current = false;
+        }}
+        onPointerMove={(event) => {
+          if (!start.current || event.pointerId !== start.current.pointer) {
+            return;
+          }
+          const next = event.clientX - start.current.x;
+          const dy = event.clientY - start.current.y;
+          const axis = dragAxis(next, dy);
+          if (axis === "y") {
+            setDx(0);
+            return;
+          }
+          if (axis === "x") {
+            dragged.current = true;
+            setDx(Math.max(-120, Math.min(120, next)));
           }
         }}
+        onPointerUp={() => {
+          const action = todoSwipeAction(dx);
+          setDx(0);
+          start.current = null;
+          if (action === "done") {
+            onDone();
+          } else if (action === "delete") {
+            onDelete();
+          }
+        }}
+        onPointerCancel={() => {
+          setDx(0);
+          start.current = null;
+        }}
       >
-        <h3>{task.titel}</h3>
-        <p className="muted">
-          {task.faelligAm ? clock(task.faelligAm) : "ohne Datum"} · {repeatLabel(task.wiederholung)}
-          {task.status === "in Arbeit" ? " · in Arbeit" : ""}
-          {task.status === "fehlgeschlagen" ? " · fehlgeschlagen" : ""}
-        </p>
-      </button>
-      {task.status === "in Arbeit" ? <span className="badge">in Arbeit</span> : null}
-      {task.status === "fehlgeschlagen" ? <span className="badge bad">fehlgeschlagen</span> : null}
+        <button type="button" className={`check ${task.status === "erledigt" ? "on" : ""}`} aria-label={task.status === "erledigt" ? t("tasks.reopen") : t("tasks.complete")} onClick={onDone}>
+          {task.status === "erledigt" ? "✓" : ""}
+        </button>
+        <button
+          type="button"
+          className="body"
+          onClick={() => {
+            if (!dragged.current) {
+              onOpen();
+            }
+          }}
+        >
+          <h3>{task.titel}</h3>
+          <p className="muted">
+            {task.faelligAm ? clock(task.faelligAm) : t("tasks.noDate")} · {repeatLabel(task.wiederholung)}
+            {task.status === "in Arbeit" ? ` · ${t("tasks.inProgress")}` : ""}
+            {task.status === "fehlgeschlagen" ? ` · ${t("tasks.failed")}` : ""}
+          </p>
+        </button>
+        {task.status === "in Arbeit" ? <span className="badge">{t("tasks.inProgress")}</span> : null}
+        {task.status === "fehlgeschlagen" ? <span className="badge bad">{t("tasks.failed")}</span> : null}
+      </div>
     </div>
   );
+}
+
+function statusText(status: TaskStatus, tr: (key: string) => string): string {
+  if (status === "erledigt") return tr("tasks.done");
+  if (status === "in Arbeit") return tr("tasks.inProgress");
+  if (status === "fehlgeschlagen") return tr("tasks.failed");
+  return tr("tasks.open");
 }
 
 function EditForm({
@@ -285,6 +307,7 @@ function EditForm({
   onPatch: (id: string, patch: { titel?: string; faelligAm?: string | null; wiederholung?: string | null; status?: TaskStatus }) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  const t = useI18n();
   const [titel, setTitel] = useState(task.titel);
   const [due, setDue] = useState(task.faelligAm ? localInput(task.faelligAm) : "");
   const [repeat, setRepeat] = useState(task.wiederholung ?? "");
@@ -303,38 +326,38 @@ function EditForm({
         })
           .then(onClose)
           .catch((caught: unknown) => {
-            setFormError(caught instanceof Error ? caught.message : "Speichern fehlgeschlagen");
+            setFormError(caught instanceof Error ? caught.message : t("tasks.failSave"));
           });
       }}
     >
       <label className="field">
-        <span>Titel</span>
+        <span>{t("cal.fieldTitle")}</span>
         <input value={titel} onChange={(event) => setTitel(event.target.value)} required maxLength={200} />
       </label>
       <label className="field">
-        <span>Fällig</span>
+        <span>{t("tasks.due")}</span>
         <input type="datetime-local" value={due} onChange={(event) => setDue(event.target.value)} />
       </label>
       <label className="field">
-        <span>Wiederholung</span>
+        <span>{t("tasks.repeat")}</span>
         <select value={repeat} onChange={(event) => setRepeat(event.target.value)}>
-          <option value="">einmal</option>
-          <option value="taeglich">täglich</option>
-          <option value="woechentlich">wöchentlich</option>
+          <option value="">{t("common.once")}</option>
+          <option value="taeglich">{t("common.daily")}</option>
+          <option value="woechentlich">{t("common.weekly")}</option>
         </select>
       </label>
       <label className="field">
-        <span>Status</span>
+        <span>{t("tasks.status")}</span>
         <select value={status} onChange={(event) => setStatus(event.target.value as TaskStatus)}>
           {STATUSES.map((item) => (
-            <option key={item} value={item}>{item}</option>
+            <option key={item} value={item}>{statusText(item, t)}</option>
           ))}
         </select>
       </label>
       {formError ? <p role="alert">{formError}</p> : null}
       <div className="actions">
-        <button type="submit" className="text-btn">Sichern</button>
-        <button type="button" className="text-btn ghost" onClick={() => void onDelete()}>Löschen</button>
+        <button type="submit" className="text-btn">{t("common.save")}</button>
+        <button type="button" className="text-btn ghost" onClick={() => void onDelete()}>{t("common.delete")}</button>
       </div>
     </form>
   );

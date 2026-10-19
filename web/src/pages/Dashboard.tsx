@@ -1,16 +1,19 @@
-import { useRef, useState } from "react";
-import { bucketTask, greeting } from "@jarvis/dates.ts";
+import { lazy, Suspense, useRef, useState } from "react";
 import { berlinParts } from "@jarvis/dates.ts";
 import { swipeAxis } from "@jarvis/gesture.ts";
-import { clock } from "../format.ts";
+import type { WidgetItem } from "../../../src/settings/model.ts";
+import { useI18n } from "../i18n/index.ts";
 import type { ChatMessage, Note, StatusResponse, Task } from "../types.ts";
 import { Empty, Lamp, Sheet, Skeleton } from "../ui.tsx";
 
-function level(ok: boolean, warn: boolean): "ok" | "warn" | "bad" {
-  if (!ok) {
-    return "bad";
-  }
-  return warn ? "warn" : "ok";
+const Board = lazy(() => import("../widgets/Board.tsx").then((mod) => ({ default: mod.Board })));
+
+function greeting(date: Date, tr: (key: string) => string): string {
+  const hour = berlinParts(date).hour;
+  if (hour < 5 || hour >= 22) return tr("greet.night");
+  if (hour < 11) return tr("greet.morning");
+  if (hour < 18) return tr("greet.day");
+  return tr("greet.evening");
 }
 
 export function Dashboard({
@@ -21,12 +24,16 @@ export function Dashboard({
   loading,
   error,
   connection,
-  themeLabel,
+  widgets,
+  editing,
+  onEditing,
+  onWidgets,
   onOpen,
   onUsage,
   onRefresh,
   onCloseNote,
-  onTheme,
+  onCreate,
+  onSettings,
 }: {
   status: StatusResponse | null;
   tasks: Task[];
@@ -35,26 +42,22 @@ export function Dashboard({
   loading: boolean;
   error: string | null;
   connection: "offline" | "connecting" | "connected";
-  themeLabel: string;
+  widgets: WidgetItem[];
+  editing: boolean;
+  onEditing: (value: boolean) => void;
+  onWidgets: (items: WidgetItem[]) => void;
   onOpen: (page: number) => void;
   onUsage: () => void;
   onRefresh: () => void;
   onCloseNote: (id: string) => void;
-  onTheme: () => void;
+  onCreate: (input: { titel: string }) => Promise<void>;
+  onSettings: () => void;
 }) {
+  const t = useI18n();
   const [notesOpen, setNotesOpen] = useState(false);
   const pull = useRef<{ x: number; y: number } | null>(null);
-  const today = berlinParts(new Date()).key;
-  const overdue = tasks.filter((task) => bucketTask(task, today) === "overdue").length;
-  const dueToday = tasks.filter((task) => bucketTask(task, today) === "today").length;
-  const upcoming = tasks
-    .filter((task) => task.status === "offen" && task.faelligAm && berlinParts(new Date(task.faelligAm)).key >= today)
-    .sort((a, b) => (a.faelligAm ?? "").localeCompare(b.faelligAm ?? ""))
-    .slice(0, 3);
-  const last = messages.at(-1);
   const budget = status?.usage?.budget;
-  const ratio = budget?.ratio ?? 0;
-  const link = connection === "connected" ? "live" : connection === "connecting" ? "verbinde" : "offline";
+  const link = connection === "connected" ? t("dash.live") : connection === "connecting" ? t("dash.connecting") : t("dash.offline");
 
   return (
     <div className="stack">
@@ -63,9 +66,7 @@ export function Dashboard({
           <Lamp className="lg" />
           <div>
             <p className="eyebrow">Jarvis</p>
-            <h1>
-              {greeting(new Date())}, Levin
-            </h1>
+            <h1>{greeting(new Date(), t)}, Levin</h1>
             <p
               className="hint"
               data-no-swipe
@@ -73,144 +74,91 @@ export function Dashboard({
                 pull.current = { x: event.clientX, y: event.clientY };
               }}
               onPointerUp={(event) => {
-                if (!pull.current) {
-                  return;
-                }
+                if (!pull.current) return;
                 const dx = event.clientX - pull.current.x;
                 const dy = event.clientY - pull.current.y;
                 pull.current = null;
-                if (swipeAxis(dx, dy) === "y" && dy > 0) {
-                  onUsage();
-                }
+                if (swipeAxis(dx, dy) === "y" && dy > 0) onUsage();
               }}
             >
-              nach unten für die Kosten
+              {t("dash.costHint")}
             </p>
           </div>
         </div>
         <div className="stack">
-          <button type="button" className="icon-btn" onClick={onTheme} aria-label={themeLabel}>
-            {themeLabel}
-          </button>
-          <button type="button" className="pill" onClick={onRefresh} aria-label="Aktualisieren">
+          {editing ? (
+            <button type="button" className="text-btn" onClick={() => onEditing(false)}>
+              {t("widget.editDone")}
+            </button>
+          ) : (
+            <button type="button" className="icon-btn" onClick={onSettings} aria-label={t("dash.settings")}>
+              <Gear />
+            </button>
+          )}
+          <button type="button" className="pill" onClick={onRefresh} aria-label={t("common.refresh")}>
             <span className={`dot ${connection === "connected" ? "ok" : connection === "connecting" ? "warn" : "bad"}`} />
             {link}
           </button>
         </div>
       </header>
-
       {error ? (
         <div className="banner bad" role="alert">
           <span>{error}</span>
-          <button type="button" className="text-btn ghost" onClick={onRefresh}>
-            Nochmal
-          </button>
+          <button type="button" className="text-btn ghost" onClick={onRefresh}>{t("common.retry")}</button>
         </div>
       ) : null}
       {budget && (budget.level === "warn" || budget.level === "over") ? (
         <div className={`banner ${budget.level === "over" ? "bad" : "warn"}`}>
-          <span>
-            {budget.level === "over"
-              ? "Monatsbudget aufgebraucht. Jarvis antwortet weiter, die Kosten laufen darüber hinaus."
-              : "80 % des Monatsbudgets sind erreicht. Jarvis antwortet weiter."}
-          </span>
-          <button type="button" className="text-btn ghost" onClick={onUsage}>
-            Kosten
-          </button>
+          <span>{budget.level === "over" ? t("dash.over") : t("dash.warn")}</span>
+          <button type="button" className="text-btn ghost" onClick={onUsage}>{t("dash.cost")}</button>
         </div>
       ) : null}
-
-      {loading && !status ? <Skeleton lines={5} /> : null}
-
-      <section className="card">
-        <span className="kicker">System</span>
-        <div className="lights">
-          <div className="light">
-            <span className={`dot ${level(Boolean(status?.telegram.connected), Boolean(status?.telegram.configured && !status.telegram.connected))}`} />
-            Bot
-          </div>
-          <div className="light">
-            <span className={`dot ${level(Boolean(status?.llm.configured && !status.llm.lastError), Boolean(status?.llm.configured && status.llm.lastError))}`} />
-            Sprachmodell
-          </div>
-          <div className="light">
-            <span className={`dot ${level(Boolean(status?.telegram.mirror), Boolean(status?.telegram.configured && !status.telegram.mirror))}`} />
-            Spiegelung
-          </div>
-        </div>
-        {status?.telegram.warning ? <p>{status.telegram.warning}</p> : null}
-        {status?.llm.lastError ? <p>{status.llm.lastError}</p> : null}
-      </section>
-
-      <button type="button" className="card" onClick={() => onOpen(2)}>
-        <span className="kicker">Aufgaben</span>
-        <strong>
-          {dueToday} heute{overdue > 0 ? ` · ${overdue} überfällig` : ""}
-        </strong>
-        <p>{tasks.filter((task) => task.status !== "erledigt").length} offen</p>
+      {loading && !status ? <Skeleton lines={5} /> : (
+        <Suspense fallback={<Skeleton lines={5} />}>
+          <Board
+            items={widgets}
+            editing={editing}
+            onEditing={onEditing}
+            onChange={onWidgets}
+            onOpen={onOpen}
+            onUsage={onUsage}
+            onCreate={onCreate}
+            status={status}
+            tasks={tasks}
+            notes={notes}
+            messages={messages}
+          />
+        </Suspense>
+      )}
+      <button type="button" className="text-btn ghost" onClick={() => setNotesOpen(true)}>
+        {t("notes.title")}
       </button>
-
-      <button type="button" className="card" onClick={() => onOpen(0)}>
-        <span className="kicker">Als Nächstes</span>
-        {upcoming.length === 0 ? (
-          <p>Keine kommenden Termine.</p>
-        ) : (
-          upcoming.map((task) => (
-            <p key={task.id}>
-              {task.faelligAm ? clock(task.faelligAm) : ""} {task.titel}
-            </p>
-          ))
-        )}
-      </button>
-
-      <button type="button" className="card" onClick={onUsage}>
-        <span className="kicker">Kosten</span>
-        <strong>
-          {status?.usage ? `${status.usage.todayUsd.toFixed(2)} $ heute` : "noch keine Zahlen"}
-        </strong>
-        {budget && budget.limitUsd ? (
-          <div
-            className="meter"
-            role="meter"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(Math.min(1, ratio) * 100)}
-            aria-label="Monatsbudget"
-          >
-            <span data-level={budget.level} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
-          </div>
-        ) : (
-          <p>Monat {status?.usage ? `${status.usage.monthUsd.toFixed(2)} $` : "–"}</p>
-        )}
-      </button>
-
-      <button type="button" className="card" onClick={() => onOpen(3)}>
-        <span className="kicker">Chat</span>
-        {last ? <p>{last.text.slice(0, 140)}</p> : <p>Noch keine Nachricht.</p>}
-      </button>
-
-      <button type="button" className="card" onClick={() => setNotesOpen(true)}>
-        <span className="kicker">Notizen</span>
-        <strong>{notes.length} offen</strong>
-      </button>
-
-      <Sheet open={notesOpen} title="Offene Notizen" onClose={() => setNotesOpen(false)}>
+      <Sheet open={notesOpen} title={t("notes.title")} onClose={() => setNotesOpen(false)}>
         {notes.length === 0 ? (
-          <Empty title="Nichts offen" text="Wenn Jarvis sich etwas merkt, liegt es hier." />
+          <Empty title={t("notes.emptyTitle")} text={t("notes.emptyBody")} />
         ) : (
           notes.map((note) => (
             <div key={note.id} className="row" data-no-swipe>
               <div className="body">
-                <h3>{note.person ?? "Notiz"}</h3>
+                <h3>{note.person ?? t("notes.person")}</h3>
                 <p className="muted">{note.text}</p>
               </div>
               <button type="button" className="text-btn ghost" onClick={() => onCloseNote(note.id)}>
-                Schließen
+                {t("common.close")}
               </button>
             </div>
           ))
         )}
       </Sheet>
     </div>
+  );
+}
+
+function Gear() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18" fill="none" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
   );
 }

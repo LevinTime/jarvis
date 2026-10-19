@@ -1,10 +1,16 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
+import { CalendarDays, House, ListChecks, MessageCircle, SquareTerminal } from "lucide-react";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import { DEFAULT_T3_URL, DEFAULT_WIDGETS, normalizeSettings, type AppSettings, type WidgetItem } from "../../src/settings/model.ts";
 import { ApiError, api } from "./api.ts";
+import { applyAppearance, readLocalSettings, writeLocalSettings } from "./appearance.ts";
 import { useLiveFeed } from "./feed.ts";
+import { useI18n } from "./i18n/index.ts";
 import { Chat } from "./pages/Chat.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
+import { Settings } from "./pages/Settings.tsx";
+import { T3Page } from "./pages/T3.tsx";
 import { Todos } from "./pages/Todos.tsx";
 import type { ChatMessage, JarvisEvent, Note, StatusResponse, Task, TaskStatus } from "./types.ts";
 import { allowPageDrag } from "@jarvis/gesture.ts";
@@ -13,38 +19,19 @@ import { Lamp, Skeleton, pulse } from "./ui.tsx";
 const CalendarPage = lazy(() => import("./pages/Calendar.tsx"));
 const UsagePage = lazy(() => import("./pages/Usage.tsx"));
 
-type ThemeChoice = "dark" | "light" | "system";
-const THEMES: ThemeChoice[] = ["dark", "light", "system"];
-const THEME_LABEL: Record<ThemeChoice, string> = {
-  dark: "Dunkel",
-  light: "Hell",
-  system: "System",
+const PAGES = [
+  { id: "calendar", Icon: CalendarDays },
+  { id: "today", Icon: House },
+  { id: "tasks", Icon: ListChecks },
+  { id: "chat", Icon: MessageCircle },
+  { id: "t3", Icon: SquareTerminal },
+] as const;
+
+type SettingsResponse = {
+  settings: AppSettings;
+  effectiveT3Url: string;
+  defaultT3Url: string;
 };
-
-function readTheme(): ThemeChoice {
-  try {
-    const value = localStorage.getItem("jarvis-theme");
-    if (value === "light" || value === "dark" || value === "system") {
-      return value;
-    }
-  } catch {
-    /* private mode */
-  }
-  return "dark";
-}
-
-function applyTheme(choice: ThemeChoice): void {
-  document.documentElement.dataset.theme = choice;
-  const light =
-    choice === "light" ||
-    (choice === "system" && window.matchMedia("(prefers-color-scheme: light)").matches);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", light ? "#f6f0e8" : "#12100e");
-  try {
-    localStorage.setItem("jarvis-theme", choice);
-  } catch {
-    /* ignore */
-  }
-}
 
 function upsertMessage(list: ChatMessage[], message: ChatMessage): ChatMessage[] {
   const index = list.findIndex(
@@ -61,7 +48,12 @@ function upsertMessage(list: ChatMessage[], message: ChatMessage): ChatMessage[]
 }
 
 export function App() {
-  const [theme, setTheme] = useState<ThemeChoice>(readTheme);
+  const t = useI18n();
+  const [settings, setSettings] = useState<AppSettings>(readLocalSettings);
+  const [t3Field, setT3Field] = useState(() => readLocalSettings().t3Url || DEFAULT_T3_URL);
+  const [defaultT3, setDefaultT3] = useState(DEFAULT_T3_URL);
+  const [editing, setEditing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [index, setIndex] = useState(1);
   const [seenCalendar, setSeenCalendar] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
@@ -74,7 +66,11 @@ export function App() {
   const [offline, setOffline] = useState(false);
   const [revision, setRevision] = useState(0);
   const [usageStamp, setUsageStamp] = useState(0);
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const dockRef = useRef<HTMLDivElement>(null);
+  const saveTimer = useRef<number | null>(null);
+  const dirty = useRef(false);
+  const pageRef = useRef(1);
+  const reduce = settings.reduceMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const [emblaRef, embla] = useEmblaCarousel({
     align: "start",
     containScroll: "trimSnaps",
@@ -96,8 +92,37 @@ export function App() {
   } = useRegisterSW();
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyAppearance(settings);
+    writeLocalSettings(settings);
+  }, [settings]);
+
+  useEffect(() => {
+    let cancel = false;
+    void api<SettingsResponse>("/api/settings")
+      .then((body) => {
+        if (cancel) {
+          return;
+        }
+        setDefaultT3(body.defaultT3Url || DEFAULT_T3_URL);
+        if (dirty.current) {
+          return;
+        }
+        const next = normalizeSettings(body.settings);
+        setSettings(next);
+        setT3Field(next.t3Url || body.defaultT3Url || DEFAULT_T3_URL);
+        writeLocalSettings(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
+  useEffect(() => () => {
+    if (saveTimer.current !== null) {
+      window.clearTimeout(saveTimer.current);
+    }
+  }, []);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -214,8 +239,28 @@ export function App() {
     if (!embla) {
       return;
     }
-    const select = () => setIndex(embla.selectedScrollSnap());
+    const paint = () => {
+      const snaps = Math.max(1, embla.scrollSnapList().length);
+      const value = embla.scrollProgress() * (snaps - 1);
+      dockRef.current?.style.setProperty("--nav", String(Number.isFinite(value) ? value : 1));
+    };
+    let armed = false;
+    const select = () => {
+      const next = embla.selectedScrollSnap();
+      if (armed && next !== pageRef.current) {
+        pulse();
+      }
+      armed = true;
+      pageRef.current = next;
+      setIndex(next);
+      if (next === 0) {
+        setSeenCalendar(true);
+      }
+      paint();
+    };
     embla.on("select", select);
+    embla.on("scroll", paint);
+    embla.on("reInit", select);
     let width = window.innerWidth;
     const onResize = () => {
       if (window.innerWidth === width) {
@@ -227,15 +272,49 @@ export function App() {
     };
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
+    select();
     return () => {
       embla.off("select", select);
+      embla.off("scroll", paint);
+      embla.off("reInit", select);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
     };
   }, [embla]);
 
+  function scheduleSave(next: AppSettings) {
+    if (saveTimer.current !== null) {
+      window.clearTimeout(saveTimer.current);
+    }
+    saveTimer.current = window.setTimeout(() => {
+      void api("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({ settings: next }),
+      }).catch(() => undefined);
+    }, 350);
+  }
+
+  function updateSettings(patch: Partial<AppSettings>) {
+    dirty.current = true;
+    setSettings((current) => {
+      try {
+        const next = normalizeSettings({ ...current, ...patch }, current);
+        scheduleSave(next);
+        return next;
+      } catch {
+        return current;
+      }
+    });
+  }
+
+  function onT3(value: string) {
+    setT3Field(value);
+    const trimmed = value.trim().replace(/\/$/, "");
+    const fallback = defaultT3.replace(/\/$/, "");
+    updateSettings({ t3Url: !trimmed || trimmed === fallback ? "" : trimmed });
+  }
+
   function go(next: number) {
-    pulse();
     setIndex(next);
     if (next === 0) {
       setSeenCalendar(true);
@@ -315,35 +394,30 @@ export function App() {
     return (
       <main className="offline">
         <Lamp className="lg" />
-        <h1>Jarvis ist gerade nicht da</h1>
-        <p>Der PC ist aus oder Tailscale hat keine Verbindung. Sobald er wieder erreichbar ist, geht es hier weiter.</p>
+        <h1>{t("offline.title")}</h1>
+        <p>{t("offline.body")}</p>
         <button type="button" className="text-btn" onClick={() => void load()}>
-          Nochmal versuchen
+          {t("offline.retry")}
         </button>
       </main>
     );
   }
 
-  const pages = [
-    { id: "calendar", label: "Kalender", icon: "cal" },
-    { id: "today", label: "Heute", icon: "home" },
-    { id: "tasks", label: "Aufgaben", icon: "check" },
-    { id: "chat", label: "Chat", icon: "chat" },
-  ] as const;
+  const effectiveT3 = settings.t3Url || defaultT3;
 
   return (
     <div className="app">
       {needRefresh ? (
         <div className="update">
-          <span>Update verfügbar</span>
+          <span>{t("update.ready")}</span>
           <button type="button" className="text-btn" onClick={() => void updateServiceWorker(true)}>
-            Neu laden
+            {t("update.reload")}
           </button>
         </div>
       ) : null}
       <div className="viewport" ref={emblaRef}>
         <div className="track">
-          <section className="slide" aria-label="Kalender">
+          <section className="slide" role="region" aria-label={t("nav.calendar")}>
             {seenCalendar || index === 0 ? (
               <Suspense fallback={<Skeleton lines={6} />}>
                 <CalendarPage revision={revision} />
@@ -352,7 +426,7 @@ export function App() {
               <Skeleton lines={4} />
             )}
           </section>
-          <section className="slide" aria-label="Heute">
+          <section className="slide" role="region" aria-label={t("nav.today")}>
             <Dashboard
               status={status}
               tasks={tasks}
@@ -361,7 +435,10 @@ export function App() {
               loading={loading}
               error={error}
               connection={connection}
-              themeLabel={THEME_LABEL[theme]}
+              widgets={settings.widgets}
+              editing={editing}
+              onEditing={setEditing}
+              onWidgets={(items: WidgetItem[]) => updateSettings({ widgets: items })}
               onOpen={go}
               onUsage={() => {
                 pulse();
@@ -372,13 +449,11 @@ export function App() {
                 await api(`/api/notes/${id}`, { method: "PATCH", body: JSON.stringify({ offen: false }) });
                 setNotes((list) => list.filter((note) => note.id !== id));
               }}
-              onTheme={() => {
-                const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length] ?? "dark";
-                setTheme(next);
-              }}
+              onCreate={createTask}
+              onSettings={() => setSettingsOpen(true)}
             />
           </section>
-          <section className="slide" aria-label="Aufgaben">
+          <section className="slide" role="region" aria-label={t("nav.tasks")}>
             <Todos
               tasks={tasks}
               loading={loading}
@@ -389,7 +464,7 @@ export function App() {
               onDelete={deleteTask}
             />
           </section>
-          <section className="slide chat-slide" aria-label="Chat">
+          <section className="slide chat-slide" role="region" aria-label={t("nav.chat")}>
             <Chat
               messages={messages}
               loading={loading}
@@ -398,24 +473,48 @@ export function App() {
               onOlder={older}
             />
           </section>
+          <section className="slide" role="region" aria-label={t("nav.t3")}>
+            <T3Page url={effectiveT3} />
+          </section>
         </div>
       </div>
-      <nav className="tabs" aria-label="Seiten">
-        {pages.map((page, pageIndex) => (
-          <button
-            key={page.id}
-            type="button"
-            aria-current={index === pageIndex ? "page" : undefined}
-            onClick={() => go(pageIndex)}
-          >
-            <TabIcon name={page.icon} />
-            {page.label}
-          </button>
-        ))}
+      <nav className="dock-wrap" aria-label={t("nav.pages")}>
+        <div className="dock" ref={dockRef}>
+          <span className="nav-indicator" aria-hidden="true" />
+          {PAGES.map((page, pageIndex) => (
+            <button
+              key={page.id}
+              type="button"
+              aria-current={index === pageIndex ? "page" : undefined}
+              onClick={() => go(pageIndex)}
+            >
+              <page.Icon strokeWidth={1.75} aria-hidden="true" />
+              {page.id === "calendar"
+                ? t("nav.calendar")
+                : page.id === "today"
+                  ? t("nav.today")
+                  : page.id === "tasks"
+                    ? t("nav.tasks")
+                    : page.id === "chat"
+                      ? t("nav.chat")
+                      : t("nav.t3")}
+            </button>
+          ))}
+        </div>
       </nav>
+      {settingsOpen ? (
+        <Settings
+          settings={settings}
+          t3Field={t3Field}
+          onChange={updateSettings}
+          onT3={onT3}
+          onClose={() => setSettingsOpen(false)}
+          onReset={() => updateSettings({ widgets: DEFAULT_WIDGETS.map((item) => ({ ...item })) })}
+        />
+      ) : null}
       {usageOpen ? (
         <div className="sheet-root" onClick={() => setUsageOpen(false)}>
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="Kosten" onClick={(event) => event.stopPropagation()}>
+          <div className="sheet" role="dialog" aria-modal="true" aria-label={t("dash.cost")} onClick={(event) => event.stopPropagation()}>
             <div className="sheet-bar" />
             <Suspense fallback={<Skeleton lines={4} />}>
               <UsagePage stamp={usageStamp} />
@@ -424,35 +523,5 @@ export function App() {
         </div>
       ) : null}
     </div>
-  );
-}
-
-function TabIcon({ name }: { name: "cal" | "home" | "check" | "chat" }) {
-  if (name === "home") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      </svg>
-    );
-  }
-  if (name === "check") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5 12.5 9.2 17 19 7" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      </svg>
-    );
-  }
-  if (name === "chat") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5 6h14v9H8l-3 3z" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M4 9h16M8 3v4M16 3v4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-    </svg>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { clock, dayLabel } from "../format.ts";
 import type { ChatMessage } from "../types.ts";
+import { useI18n } from "../i18n/index.ts";
 import { Empty, Markdown, Skeleton, pulse } from "../ui.tsx";
 
 export function Chat({
@@ -16,6 +17,7 @@ export function Chat({
   onSend: (text: string) => Promise<void>;
   onOlder: (beforeId: string) => Promise<ChatMessage[]>;
 }) {
+  const t = useI18n();
   const [text, setText] = useState("");
   const [jump, setJump] = useState(false);
   const [older, setOlder] = useState(false);
@@ -71,8 +73,8 @@ export function Chat({
     <div className="chat-slide" style={{ height: "100%" }}>
       <header className="top">
         <div>
-          <p className="eyebrow">Chat</p>
-          <h1>Jarvis</h1>
+          <p className="eyebrow">{t("chat.kicker")}</p>
+          <h1>{t("chat.title")}</h1>
         </div>
       </header>
       {error ? <div className="banner bad" role="alert">{error}</div> : null}
@@ -91,7 +93,7 @@ export function Chat({
       >
         {loading && messages.length === 0 ? <Skeleton lines={4} /> : null}
         {!loading && messages.length === 0 ? (
-          <Empty title="Noch nichts gesagt" text="Schreib Jarvis, was ansteht. Telegram und die App teilen sich den Verlauf." />
+          <Empty title={t("chat.emptyTitle")} text={t("chat.emptyBody")} />
         ) : null}
         {messages.map((message) => {
           const day = dayLabel(message.ts);
@@ -103,15 +105,15 @@ export function Chat({
               {showDay ? <div className="day-chip">{day}</div> : null}
               <article className={`bubble ${message.source === "system" ? "system" : mine ? "user" : "assistant"}`}>
                 <div className="meta">
-                  <span>{message.source === "telegram" ? "Telegram" : message.source === "web" ? "Web" : "System"}</span>
+                  <span>{message.source === "telegram" ? t("source.telegram") : message.source === "web" ? t("source.web") : t("source.system")}</span>
                   <time dateTime={message.ts}>{clock(message.ts)}</time>
                 </div>
                 <Markdown text={message.text} />
                 {message.status === "error" ? (
                   <p>
-                    {message.error ?? "Nicht gesendet."}{" "}
+                    {message.error ?? t("chat.fail")}{" "}
                     <button type="button" className="text-btn ghost" onClick={() => void onSend(message.text)}>
-                      Erneut senden
+                      {t("chat.retry")}
                     </button>
                   </p>
                 ) : null}
@@ -119,7 +121,7 @@ export function Chat({
             </div>
           );
         })}
-        {typing ? <div className="bubble assistant" aria-live="polite">Jarvis tippt…</div> : null}
+        {typing ? <div className="bubble assistant" aria-live="polite">{t("chat.typing")}</div> : null}
         {jump ? (
           <button
             type="button"
@@ -133,7 +135,7 @@ export function Chat({
               setJump(false);
             }}
           >
-            Neue Nachrichten
+            {t("chat.jump")}
           </button>
         ) : null}
       </div>
@@ -145,13 +147,13 @@ export function Chat({
           void send();
         }}
       >
-        <label className="sr-only" htmlFor="chat-text">Nachricht</label>
+        <label className="sr-only" htmlFor="chat-text">{t("chat.message")}</label>
         <textarea
           id="chat-text"
           rows={1}
           value={text}
           maxLength={4000}
-          placeholder="Nachricht an Jarvis"
+          placeholder={t("chat.placeholder")}
           enterKeyHint="send"
           onChange={(event) => {
             setText(event.target.value);
@@ -169,7 +171,7 @@ export function Chat({
             void send();
           }}
         />
-        <button type="submit" className="send" aria-label="Senden">Senden</button>
+        <button type="submit" className="send" aria-label={t("chat.send")}>{t("chat.send")}</button>
       </form>
     </div>
   );
