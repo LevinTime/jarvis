@@ -7,6 +7,7 @@ import { Chat } from "./pages/Chat.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
 import { Todos } from "./pages/Todos.tsx";
 import type { ChatMessage, JarvisEvent, Note, StatusResponse, Task, TaskStatus } from "./types.ts";
+import { allowPageDrag } from "@jarvis/gesture.ts";
 import { Lamp, Skeleton, pulse } from "./ui.tsx";
 
 const CalendarPage = lazy(() => import("./pages/Calendar.tsx"));
@@ -75,6 +76,9 @@ export function App() {
   const [usageStamp, setUsageStamp] = useState(0);
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const [emblaRef, embla] = useEmblaCarousel({
+    align: "start",
+    containScroll: "trimSnaps",
+    slidesToScroll: 1,
     startIndex: 1,
     duration: reduce ? 0 : 22,
     watchDrag: (_api, event) => {
@@ -82,7 +86,8 @@ export function App() {
       if (!(target instanceof Element)) {
         return true;
       }
-      return !target.closest("[data-no-swipe], input, textarea, select");
+      const point = "clientX" in event ? Number(event.clientX) : 0;
+      return allowPageDrag(target, point, window.innerWidth);
     },
   });
   const {
@@ -211,8 +216,21 @@ export function App() {
     }
     const select = () => setIndex(embla.selectedScrollSnap());
     embla.on("select", select);
+    let width = window.innerWidth;
+    const onResize = () => {
+      if (window.innerWidth === width) {
+        return;
+      }
+      width = window.innerWidth;
+      embla.reInit();
+      select();
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
     return () => {
       embla.off("select", select);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
     };
   }, [embla]);
 

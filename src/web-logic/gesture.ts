@@ -44,3 +44,21 @@ export function todoSwipeAction(dx: number): TodoSwipe {
   }
   return "none";
 }
+
+const PAGE_EDGE_PX = 28;
+
+/**
+ * Page swipe loses to inputs, mail-style rows, and the calendar surface.
+ * A finger that starts on the screen edge may still change pages.
+ */
+export function allowPageDrag(target: Element, clientX: number, viewportWidth: number): boolean {
+  if (target.closest("input, textarea, select, [data-no-swipe]")) {
+    return false;
+  }
+  const calendar = target.closest("[data-gesture='calendar']");
+  if (!calendar) {
+    return true;
+  }
+  const width = viewportWidth > 0 ? viewportWidth : 0;
+  return clientX <= PAGE_EDGE_PX || clientX >= width - PAGE_EDGE_PX;
+}

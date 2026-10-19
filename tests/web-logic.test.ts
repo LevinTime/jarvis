@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { addCivilDays, berlinParts, bucketTask, greeting, mondayOf, monthGrid } from "../src/web-logic/dates.ts";
-import { dragAxis, swipeAxis, todoSwipeAction } from "../src/web-logic/gesture.ts";
+import { allowPageDrag, dragAxis, swipeAxis, todoSwipeAction } from "../src/web-logic/gesture.ts";
 import { createLiveState, reconnectDelayMs } from "../src/web-logic/live.ts";
 import { parseMarkdown } from "../src/web-logic/markdown.ts";
 import { parseSseBlock } from "../src/web-logic/sse.ts";
@@ -41,6 +41,23 @@ test("swipes need a clear axis and ignore blocked targets", () => {
   assert.equal(todoSwipeAction(100), "done");
   assert.equal(todoSwipeAction(-100), "delete");
   assert.equal(todoSwipeAction(20), "none");
+});
+
+test("page drags stay off the calendar except at the screen edge", () => {
+  const root = {
+    closest(selector: string) {
+      return selector.includes("calendar") ? root : null;
+    },
+  } as unknown as Element;
+  const blocked = {
+    closest(selector: string) {
+      return selector.includes("data-no-swipe") ? blocked : null;
+    },
+  } as unknown as Element;
+  assert.equal(allowPageDrag(root, 8, 390), true);
+  assert.equal(allowPageDrag(root, 200, 390), false);
+  assert.equal(allowPageDrag(root, 370, 390), true);
+  assert.equal(allowPageDrag(blocked, 8, 390), false);
 });
 
 test("live state keeps the newest event id and asks for one resync", () => {
