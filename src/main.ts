@@ -22,6 +22,7 @@ export async function startJarvis(): Promise<void> {
     maxTokens: process.env.GROK_MAX_TOKENS,
     allowedTsUser: process.env.JARVIS_ALLOWED_TS_USER,
     frontendDist: path.join(projectRoot, "web", "dist"),
+    t3Url: process.env.JARVIS_T3_URL,
   });
   const started = await startWebServer(runtime.app, { port: readWebPort() });
   logInfo(`Jarvis läuft auf http://${started.host}:${started.port}`);

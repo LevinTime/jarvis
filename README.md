@@ -74,6 +74,7 @@ copy config\.env.example .env
 | `JARVIS_WEB_PORT` oder `PORT` | Web-Port, Standard `3000`. Der Server bindet nur an `127.0.0.1`. |
 | `JARVIS_MONTHLY_BUDGET_USD` | Monatsbudget in US-Dollar, Standard `15`. Ab 80 Prozent Warnung, ab 100 Prozent Hinweis in App und Telegram. `0` schaltet es aus. Blockiert nie. |
 | `JARVIS_ALLOWED_TS_USER` | Optional. Tailscale-Login. Siehe unten. |
+| `JARVIS_T3_URL` | Optional. Basisadresse von T3 Code, Standard `http://127.0.0.1:3773`. In den App-Einstellungen überschreibbar. Keine Zugangsdaten. |
 | `OLLAMA_URL` | Reserviert, noch ungenutzt |
 | `WEATHER_LOCATION` | Reserviert, noch ungenutzt |
 

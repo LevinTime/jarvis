@@ -138,6 +138,13 @@ function withTimeout(llm: LlmClient, timeoutMs: number): LlmClient {
   };
 }
 
+export function systemPromptFor(base: string, language: "de" | "en"): string {
+  if (language === "en") {
+    return `${base.trimEnd()}\n\nReply in English.`;
+  }
+  return base;
+}
+
 export function createMessageHandler(options: {
   llm: LlmClient;
   systemPrompt: string;
@@ -150,6 +157,7 @@ export function createMessageHandler(options: {
   now?: () => Date;
   timeoutMs?: number;
   onTurn?: (turn: TurnNotice) => void | Promise<unknown>;
+  replyLanguage?: () => Promise<"de" | "en"> | "de" | "en";
 }) {
   const tools = createBotTools(options.tasks, options.transcripts, options.notes);
   const llm = withTimeout(options.llm, options.timeoutMs ?? 60_000);
@@ -209,9 +217,17 @@ export function createMessageHandler(options: {
       try {
         const history = await options.messages.list({ limit: 80 });
         const prior = toContext(history.filter((message) => message.id !== stored.message.id));
+        let language: "de" | "en" = "de";
+        if (options.replyLanguage) {
+          try {
+            language = (await options.replyLanguage()) === "en" ? "en" : "de";
+          } catch {
+            language = "de";
+          }
+        }
         const reply = await chatWithTools({
           llm,
-          systemPrompt: options.systemPrompt,
+          systemPrompt: systemPromptFor(options.systemPrompt, language),
           userText: stored.message.text,
           tools: tools.definitions,
           execute: tools.execute,

@@ -2,13 +2,7 @@ import type { ReactNode } from "react";
 import type { Inline } from "@jarvis/markdown.ts";
 import { parseMarkdown } from "@jarvis/markdown.ts";
 
-export function pulse(ms = 10): void {
-  try {
-    navigator.vibrate?.(ms);
-  } catch {
-    /* some browsers throw if vibration is blocked */
-  }
-}
+export { pulse } from "./feel.ts";
 
 export function Lamp({ className = "" }: { className?: string }) {
   return <span className={`lamp ${className}`} aria-hidden="true" />;

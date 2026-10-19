@@ -26,6 +26,9 @@ import {
 } from "../tasks/service.ts";
 import type { UsageStore } from "../usage/store.ts";
 import type { UsageRange } from "../usage/cost.ts";
+import { probeT3 } from "../settings/probe.ts";
+import { SettingsValidationError, DEFAULT_SETTINGS, readDefaultT3Url } from "../settings/model.ts";
+import type { SettingsStore } from "../settings/store.ts";
 import { renderHomePage, renderMissingFrontend } from "./page.ts";
 import {
   apiError,
@@ -62,6 +65,8 @@ export type WebAppOptions = {
   telegram?: { configured: boolean; connected: boolean; mirror: boolean };
   llm?: { configured: boolean; lastError: () => string | undefined };
   chatPerMinute?: number;
+  settings?: SettingsStore;
+  t3Url?: string;
 };
 
 function errorBody(error: unknown): { status: 400 | 404 | 409 | 500; message: string } {
@@ -79,6 +84,9 @@ function errorBody(error: unknown): { status: 400 | 404 | 409 | 500; message: st
   }
   if (error instanceof NoteNotFoundError) {
     return { status: 404, message: error.message };
+  }
+  if (error instanceof SettingsValidationError) {
+    return { status: 400, message: error.message };
   }
   const message = error instanceof Error ? error.message : String(error);
   return { status: 500, message };
@@ -454,6 +462,51 @@ export function createWebApp(options: WebAppOptions): Hono {
       const failed = errorBody(error);
       return c.json(apiError("invalid", failed.message), failed.status === 500 ? 500 : 400);
     }
+  });
+
+  async function settingsBody() {
+    if (!options.settings) {
+      const defaultT3Url = readDefaultT3Url(options.t3Url);
+      return {
+        settings: DEFAULT_SETTINGS,
+        effectiveT3Url: defaultT3Url,
+        defaultT3Url,
+      };
+    }
+    const settings = await options.settings.get();
+    return {
+      settings,
+      effectiveT3Url: await options.settings.effectiveT3Url(),
+      defaultT3Url: options.settings.defaultT3Url(),
+    };
+  }
+
+  app.get("/api/settings", async (c) => c.json(await settingsBody()));
+
+  app.put("/api/settings", async (c) => {
+    if (!options.settings) {
+      return c.json(apiError("unavailable", "Einstellungen sind nicht verfügbar"), 501);
+    }
+    let payload: unknown;
+    try {
+      payload = await c.req.json();
+    } catch {
+      return c.json(apiError("invalid", "JSON ungültig"), 400);
+    }
+    const body = record(payload);
+    try {
+      await options.settings.save(body?.settings ?? payload);
+      return c.json(await settingsBody());
+    } catch (error) {
+      const failed = errorBody(error);
+      return c.json(apiError("invalid", failed.message), failed.status === 500 ? 500 : 400);
+    }
+  });
+
+  app.get("/api/t3", async (c) => {
+    const current = await settingsBody();
+    const probe = await probeT3(current.effectiveT3Url);
+    return c.json({ url: current.effectiveT3Url, reachable: probe.reachable, status: probe.status });
   });
 
   app.get("/api/usage", async (c) => {

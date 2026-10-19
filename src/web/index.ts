@@ -20,6 +20,7 @@ const runtime = await createRuntime({
   maxTokens: process.env.GROK_MAX_TOKENS,
   allowedTsUser: process.env.JARVIS_ALLOWED_TS_USER,
   frontendDist: path.join(projectRoot, "web", "dist"),
+  t3Url: process.env.JARVIS_T3_URL,
 });
 const app = runtime.app;
 const started = await startWebServer(app, { port: readWebPort() });

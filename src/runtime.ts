@@ -28,6 +28,8 @@ import { createTranscriptService, type TranscriptService } from "./transcripts/s
 import { budgetNotice, type BudgetLevel } from "./usage/cost.ts";
 import { createUsageStore, type UsageStore } from "./usage/store.ts";
 import type { UsageNotice } from "./usage/types.ts";
+import { createSettingsStore, settingsPath } from "./settings/store.ts";
+import { checkT3Url, DEFAULT_T3_URL } from "./settings/model.ts";
 import { createWebApp, type WebAppOptions } from "./web/server.ts";
 import type { LlmClient } from "./bot/tools.ts";
 import { germanLlmError } from "./llm-error.ts";
@@ -94,6 +96,7 @@ export async function createRuntime(options: {
   allowedTsUser?: string;
   version?: string;
   frontendDist?: string;
+  t3Url?: string;
 }) {
   const timeZone = options.timeZone?.trim() || "Europe/Berlin";
   if (options.allowedTsUser?.trim()) {
@@ -150,6 +153,20 @@ export async function createRuntime(options: {
   let bot: ReturnType<typeof createTelegramBot> | null = null;
   let reminders: { stop: () => void } | null = null;
 
+  const providedT3 = options.t3Url?.trim() ?? "";
+  let defaultT3Url = DEFAULT_T3_URL;
+  if (providedT3) {
+    try {
+      defaultT3Url = checkT3Url(providedT3) || DEFAULT_T3_URL;
+    } catch {
+      logInfo("JARVIS_T3_URL ist ungültig. Es gilt die lokale T3-Adresse.");
+    }
+  }
+  const settings = createSettingsStore({
+    file: settingsPath(options.dataDir),
+    defaultT3Url,
+  });
+
   const handler = createMessageHandler({
     llm,
     systemPrompt: await loadSystemPrompt(),
@@ -159,6 +176,7 @@ export async function createRuntime(options: {
     messages,
     events,
     timeZone,
+    replyLanguage: async () => (await settings.get()).assistantLanguage,
     onTurn: (turn) => {
       if (turn.source !== "web" || !bot || !mirror) {
         return;
@@ -220,6 +238,8 @@ export async function createRuntime(options: {
       ? { allowedTsUser: options.allowedTsUser.trim() }
       : {}),
     ...(options.frontendDist ? { frontendDist: options.frontendDist } : {}),
+    settings,
+    t3Url: defaultT3Url,
     reply: async (message) => {
       const turn = await handler.handleUserMessage({ text: message, source: "web" });
       const finished = await turn.done;
