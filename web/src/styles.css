@@ -363,7 +363,7 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
 .widget h3 { margin: 4px 0; font-size: 1.15rem; letter-spacing: -0.03em; }
 .widget .tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 2; }
 .widget .tools button { min-width: 44px; min-height: 36px; border: 0; border-radius: 999px; background: var(--bg); color: var(--fg); }
-html[data-editing="1"] .widget { animation: jiggle 0.28s ease-in-out infinite alternate; }
+
 .clock-time { font-size: 1.8rem; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 
 .dock-wrap { padding: 0 12px calc(10px + env(safe-area-inset-bottom)); }

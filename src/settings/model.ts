@@ -38,13 +38,11 @@ export type AppSettings = {
 export const DEFAULT_T3_URL = "http://127.0.0.1:3773";
 
 export const DEFAULT_WIDGETS: WidgetItem[] = [
-  { id: "clock", kind: "clock", size: "m" },
   { id: "status", kind: "status", size: "m" },
-  { id: "tasks", kind: "tasks", size: "m" },
-  { id: "events", kind: "events", size: "m" },
-  { id: "quick", kind: "quick", size: "s" },
+  { id: "tasks", kind: "tasks", size: "l" },
+  { id: "events", kind: "events", size: "l" },
+  { id: "quick", kind: "quick", size: "m" },
   { id: "notes", kind: "notes", size: "s" },
-  { id: "cost", kind: "cost", size: "s" },
   { id: "chat", kind: "chat", size: "s" },
   { id: "t3", kind: "t3", size: "m" },
   { id: "memory", kind: "memory", size: "s" },

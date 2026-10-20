@@ -1,0 +1,16 @@
+.bento { width: 100%; }
+.react-grid-item { touch-action: auto !important; }
+.widget-handle,
+.react-resizable-handle { touch-action: none; }
+.widget .tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 2; }
+.widget .tools button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.react-grid-item.cssTransforms { transition: transform 200ms ease-out; }
+.react-grid-item.resizing,
+.react-grid-item.react-draggable-dragging { transition: none; z-index: 3; }

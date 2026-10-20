@@ -1,18 +1,27 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  DndContext,
-  PointerSensor,
-  TouchSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useEffect, useRef, useState } from "react";
+import { ResponsiveGridLayout, useContainerWidth } from "react-grid-layout";
+import type { Layout } from "react-grid-layout";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+import "./board.css";
 import { berlinParts, bucketTask } from "@jarvis/dates.ts";
+import {
+  BREAKPOINTS,
+  COLS,
+  LAYOUT_STORAGE_KEY,
+  layoutsEqual,
+  mergeLayouts,
+  nearestSize,
+  packLayouts,
+  readDashboardLayouts,
+  serializeDashboardLayouts,
+  spanFor,
+  type BreakpointId,
+  type DashboardLayouts,
+  type TileLayout,
+} from "@jarvis/dashboard-layout.ts";
 import { minutesInBerlin, type DayEvent } from "@jarvis/day-timeline.ts";
-import { DEFAULT_WIDGETS, WIDGET_KINDS, type WidgetItem, type WidgetKind, type WidgetSize } from "../../../src/settings/model.ts";
+import { WIDGET_KINDS, type WidgetItem, type WidgetKind } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
 import { clock } from "../format.ts";
 import { useI18n } from "../i18n/index.ts";
@@ -22,12 +31,30 @@ import { DayBar } from "./DayBar.tsx";
 
 const HIDDEN_KINDS = new Set<WidgetKind>(["cost", "clock"]);
 
-const NEXT_SIZE: Record<WidgetSize, WidgetSize> = { s: "m", m: "l", l: "s" };
+function readStoredLayout(): string | null {
+  try {
+    return localStorage.getItem(LAYOUT_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredLayout(layouts: DashboardLayouts): void {
+  try {
+    localStorage.setItem(LAYOUT_STORAGE_KEY, serializeDashboardLayouts(layouts));
+  } catch {
+    /* private mode */
+  }
+}
+
+function toTiles(layout: Layout): TileLayout[] {
+  return layout.map((item) => ({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h }));
+}
 
 export function Board({
   items,
   editing,
-  onEditing,
+  resetKey,
   onChange,
   onOpen,
   onCreate,
@@ -39,7 +66,7 @@ export function Board({
 }: {
   items: WidgetItem[];
   editing: boolean;
-  onEditing: (value: boolean) => void;
+  resetKey: number;
   onChange: (items: WidgetItem[]) => void;
   onOpen: (page: number) => void;
   onCreate: (input: { titel: string }) => Promise<void>;
@@ -50,13 +77,14 @@ export function Board({
   messages: ChatMessage[];
 }) {
   const t = useI18n();
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
-  );
-  const hold = useRef<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [breakpoint, setBreakpoint] = useState<BreakpointId>("sm");
   const shown = items.filter((item) => !HIDDEN_KINDS.has(item.kind));
+  const ids = shown.map((item) => item.id);
+  const idsKey = ids.join("|");
+  const [layouts, setLayouts] = useState(() => readDashboardLayouts(readStoredLayout(), ids));
+  const seenReset = useRef(resetKey);
+  const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const missing = WIDGET_KINDS.filter((kind) => !HIDDEN_KINDS.has(kind) && !shown.some((item) => item.kind === kind));
 
   useEffect(() => {
@@ -66,55 +94,86 @@ export function Board({
     };
   }, [editing]);
 
-  function onDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) {
+  useEffect(() => {
+    const nextIds = idsKey.length === 0 ? [] : idsKey.split("|");
+    setLayouts((current) => {
+      const merged = mergeLayouts(current, nextIds);
+      return layoutsEqual(current, merged) ? current : merged;
+    });
+  }, [idsKey]);
+
+  useEffect(() => {
+    if (seenReset.current === resetKey) {
       return;
     }
-    const from = shown.findIndex((item) => item.id === active.id);
-    const to = shown.findIndex((item) => item.id === over.id);
-    if (from < 0 || to < 0) {
-      return;
-    }
-    onChange(arrayMove(shown, from, to));
+    seenReset.current = resetKey;
+    const nextIds = idsKey.length === 0 ? [] : idsKey.split("|");
+    const next = packLayouts(nextIds);
+    setLayouts(next);
+    writeStoredLayout(next);
+  }, [resetKey, idsKey]);
+
+  function save(breakpointId: BreakpointId, layout: Layout) {
+    setLayouts((current) => {
+      const next = { ...current, [breakpointId]: toTiles(layout) };
+      writeStoredLayout(next);
+      return next;
+    });
     pulse(8);
   }
 
   return (
-    <div
-      onPointerDown={() => {
-        if (editing) {
-          return;
-        }
-        hold.current = window.setTimeout(() => {
-          pulse(12);
-          onEditing(true);
-        }, 480);
-      }}
-      onPointerMove={() => {
-        if (hold.current) {
-          window.clearTimeout(hold.current);
-          hold.current = null;
-        }
-      }}
-      onPointerUp={() => {
-        if (hold.current) {
-          window.clearTimeout(hold.current);
-          hold.current = null;
-        }
-      }}
-    >
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={shown.map((item) => item.id)} strategy={rectSortingStrategy}>
-          <div className="widget-grid">
+    <div>
+      <div ref={containerRef} className="bento">
+        {mounted && width > 0 ? (
+          <ResponsiveGridLayout
+            width={width}
+            layouts={layouts}
+            breakpoints={BREAKPOINTS}
+            cols={COLS}
+            rowHeight={40}
+            margin={[12, 12]}
+            containerPadding={[0, 0]}
+            dragConfig={{ enabled: editing, handle: ".widget-handle", threshold: 4 }}
+            resizeConfig={{ enabled: editing, handles: ["se"] }}
+            onBreakpointChange={(next) => {
+              if (next === "lg" || next === "md" || next === "sm") {
+                setBreakpoint(next);
+              }
+            }}
+            onDragStop={(layout) => save(breakpoint, layout)}
+            onResizeStop={(layout, _previous, item) => {
+              if (!item) {
+                save(breakpoint, layout);
+                return;
+              }
+              const cols = COLS[breakpoint];
+              const size = nearestSize(item.w, item.h, item.i, cols);
+              const span = spanFor(item.i, size, cols);
+              save(
+                breakpoint,
+                layout.map((tile) => (tile.i === item.i ? { ...tile, w: span.w, h: span.h } : tile)),
+              );
+              onChange(items.map((entry) => (entry.id === item.i ? { ...entry, size } : entry)));
+            }}
+          >
             {shown.map((item) => (
-              <WidgetFrame
-                key={item.id}
-                item={item}
-                editing={editing}
-                onRemove={() => onChange(items.filter((entry) => entry.id !== item.id))}
-                onResize={() => onChange(items.map((entry) => entry.id === item.id ? { ...entry, size: NEXT_SIZE[entry.size] } : entry))}
-              >
+              <article key={item.id} className="widget" data-size={item.size}>
+                {editing ? (
+                  <div className="tools">
+                    <button type="button" className="widget-handle" aria-label={t("widget.handle")}>
+                      ⠿
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={t("widget.remove")}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => onChange(items.filter((entry) => entry.id !== item.id))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null}
                 <WidgetBody
                   item={item}
                   status={status}
@@ -126,15 +185,15 @@ export function Board({
                   onMemory={onMemory}
                   locked={editing}
                 />
-              </WidgetFrame>
+              </article>
             ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+          </ResponsiveGridLayout>
+        ) : null}
+      </div>
       {editing ? (
         <div className="stack" style={{ marginTop: 12 }}>
-          <button type="button" className="text-btn" onClick={() => setAdding((open) => !open)}>
-            {t("widget.add")}
+          <button type="button" className="text-btn" onClick={() => setAdding((open) => !open)} aria-label={t("widget.add")}>
+            +
           </button>
           {adding ? (
             <div className="choice">
@@ -153,9 +212,6 @@ export function Board({
               ))}
             </div>
           ) : null}
-          <button type="button" className="text-btn ghost" onClick={() => onChange(DEFAULT_WIDGETS.map((item) => ({ ...item })))}>
-            {t("widget.reset")}
-          </button>
         </div>
       ) : null}
     </div>
@@ -175,44 +231,6 @@ function label(kind: WidgetKind, tr: (key: string) => string): string {
     case "t3": return tr("widget.t3");
     case "memory": return tr("widget.memory");
   }
-}
-
-function WidgetFrame({
-  item,
-  editing,
-  onRemove,
-  onResize,
-  children,
-}: {
-  item: WidgetItem;
-  editing: boolean;
-  onRemove: () => void;
-  onResize: () => void;
-  children: ReactNode;
-}) {
-  const t = useI18n();
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id, disabled: !editing });
-  return (
-    <article
-      ref={setNodeRef}
-      className="widget"
-      data-size={item.size}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      {...(editing ? { ...attributes, ...listeners } : {})}
-    >
-      {editing ? (
-        <div className="tools">
-          <button type="button" aria-label={t("widget.remove")} onPointerDown={(event) => event.stopPropagation()} onClick={onRemove}>
-            ×
-          </button>
-          <button type="button" aria-label={t("widget.grow")} onPointerDown={(event) => event.stopPropagation()} onClick={onResize}>
-            ⤢
-          </button>
-        </div>
-      ) : null}
-      {children}
-    </article>
-  );
 }
 
 function WidgetBody({

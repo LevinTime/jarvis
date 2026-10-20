@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import {
+  LAYOUT_VERSION,
+  layoutsEqual,
+  packLayouts,
+  readDashboardLayouts,
+  serializeDashboardLayouts,
+} from "../src/web-logic/dashboard-layout.ts";
 import { layoutDayBar, renderDayBar } from "../src/web-logic/day-timeline.ts";
 import { orbMoves, resolveOrbState, SPEAK_FOR_MS, type OrbMessage } from "../src/web-logic/orb-state.ts";
 
@@ -78,6 +85,28 @@ test("day bar places blocks from 07 to 22 and marks now", () => {
   assert.match(html, /class="day-now"/);
   assert.match(html, /Whirlpool/);
   assert.equal(renderDayBar(layoutDayBar({ nowMin: 23 * 60, events: [] })).includes("day-now"), false);
+});
+
+test("saved dashboard layout falls back when the value is broken or old", () => {
+  const ids = ["status", "tasks", "events"];
+  const defaults = packLayouts(ids);
+  assert.equal(layoutsEqual(readDashboardLayouts(null, ids), defaults), true);
+  assert.equal(layoutsEqual(readDashboardLayouts("not json", ids), defaults), true);
+  assert.equal(layoutsEqual(readDashboardLayouts(JSON.stringify({ version: 0, layouts: {} }), ids), defaults), true);
+  const broken = serializeDashboardLayouts(defaults).replace('"w":12', '"w":"wide"');
+  assert.equal(layoutsEqual(readDashboardLayouts(broken, ids), defaults), true);
+
+  const custom = packLayouts(ids);
+  const moved = custom.lg[0];
+  if (moved) {
+    moved.x = 1;
+  }
+  const raw = JSON.stringify({ version: LAYOUT_VERSION, layouts: custom });
+  const read = readDashboardLayouts(raw, [...ids, "notes"]);
+  assert.equal(read.lg.find((tile) => tile.i === "status")?.x, 1);
+  assert.equal(read.lg.some((tile) => tile.i === "notes"), true);
+  assert.equal(read.lg.some((tile) => tile.i === "cost"), false);
+  assert.equal(serializeDashboardLayouts(read).includes(`"version":${LAYOUT_VERSION}`), true);
 });
 
 test("orb motion stops for reduced motion and a hidden tab", () => {
