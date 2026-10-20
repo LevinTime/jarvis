@@ -27,7 +27,9 @@
   --user: color-mix(in oklab, var(--accent) 28%, #12162a);
   --glass: rgba(13, 16, 36, 0.72);
   --spring: cubic-bezier(0.22, 1.15, 0.36, 1);
-  --radius-card: calc(26px * var(--radius-scale));
+  --radius-card: calc(22px * var(--radius-scale));
+  --page-x: 20px;
+  --page-y: 20px;
   --radius-control: calc(16px * var(--radius-scale));
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
 }
@@ -100,6 +102,8 @@ html[data-density="airy"] { --pad: 22px; --gap: 16px; --row: 104px; }
 * { box-sizing: border-box; }
 html {
   font-size: calc(16px * var(--text-scale));
+  background-color: var(--bg);
+  overscroll-behavior: none;
 }
 html, body, #root {
   height: 100%;
@@ -109,17 +113,19 @@ html, body, #root {
 }
 body {
   margin: 0;
-  background:
+  background-color: var(--bg);
+  background-image:
     radial-gradient(120% 70% at 0% -10%, var(--glow), transparent 46%),
     linear-gradient(180deg, var(--bg-2), var(--bg) 28%);
+  overscroll-behavior: none;
   color: var(--fg);
   font-family: var(--font);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 button, input, textarea, select { font: inherit; color: inherit; }
-button { cursor: pointer; }
-input, textarea, select { font-size: 1rem; }
+button { cursor: pointer; touch-action: manipulation; }
+input, textarea, select { font-size: max(16px, 1rem); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 a { color: var(--accent); }
 a.text-btn { text-decoration: none; }
@@ -148,8 +154,7 @@ a.text-btn { text-decoration: none; }
   height: 100%;
   overflow-x: clip;
   overflow-y: auto;
-  padding: var(--pad);
-  padding-bottom: 8px;
+  padding: var(--page-y) var(--page-x) 8px;
 }
 .chat-slide { display: flex; flex-direction: column; overflow: clip; }
 p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap: anywhere; min-width: 0; }
@@ -169,11 +174,12 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
 .brand h1, .top h1, .settings-screen h1 { margin: 0; font-size: 1.7rem; letter-spacing: -0.04em; line-height: 1.05; font-weight: 680; }
 .eyebrow, .kicker { margin: 0; color: var(--accent); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 650; }
 .hint, .muted, .card p { color: var(--muted); margin: 4px 0 0; }
-.icon-btn, .text-btn, .send, .check, .dock button {
+.icon-btn, .text-btn, .send, .check, .dock button, .chrome-btn {
   min-height: 44px;
   min-width: 44px;
   border: 0;
   border-radius: 999px;
+  touch-action: manipulation;
 }
 .icon-btn { padding: 0 14px; background: var(--surface); box-shadow: inset 0 1px 0 var(--highlight); }
 .pill, .text-btn, .send {
@@ -362,13 +368,45 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
 .day-next { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
 .widget h3 { margin: 4px 0; font-size: 1.15rem; letter-spacing: -0.03em; }
 .widget .tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 2; }
-.widget .tools button { min-width: 44px; min-height: 36px; border: 0; border-radius: 999px; background: var(--bg); color: var(--fg); }
+.widget .tools button { min-width: 44px; min-height: 44px; border: 0; border-radius: 999px; background: var(--bg); color: var(--fg); }
 
 .clock-time { font-size: 1.8rem; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 
-.dock-wrap { padding: 0 12px calc(10px + env(safe-area-inset-bottom)); }
+.dock-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px calc(10px + env(safe-area-inset-bottom));
+}
+.dock-wrap > nav {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+@media (max-width: 639px) {
+  .dock-wrap { flex-wrap: wrap; justify-content: space-between; }
+  .dock-wrap > nav { order: -1; flex: 1 0 100%; }
+  .dock { max-width: none; }
+}
+.chrome-btn {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--glass);
+  color: var(--fg);
+  box-shadow: inset 0 1px 0 var(--highlight);
+}
+.chrome-btn[aria-disabled="true"] { opacity: 0.38; }
 .dock {
   position: relative;
+  flex: 1 1 auto;
+  width: min(640px, 100%);
+  max-width: 640px;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 4px;
@@ -450,6 +488,23 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
 .update { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 12px; right: 12px; z-index: 40; }
 .toggle { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; }
 .toggle input { width: 22px; height: 22px; }
+
+@media (min-width: 1024px) {
+  :root {
+    --page-x: max(40px, calc((100vw - 1280px) / 2));
+    --page-y: 40px;
+  }
+}
+
+@media (display-mode: standalone) {
+  html, body, #root, .app {
+    background-color: var(--bg);
+    min-height: 100dvh;
+  }
+  .app {
+    height: 100dvh;
+  }
+}
 
 .dash-head {
   position: relative;

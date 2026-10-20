@@ -16,6 +16,7 @@ import {
   readDashboardLayouts,
   serializeDashboardLayouts,
   spanFor,
+  viewportBreakpoint,
   type BreakpointId,
   type DashboardLayouts,
   type TileLayout,
@@ -78,7 +79,9 @@ export function Board({
 }) {
   const t = useI18n();
   const [adding, setAdding] = useState(false);
-  const [breakpoint, setBreakpoint] = useState<BreakpointId>("sm");
+  const [breakpoint, setBreakpoint] = useState<BreakpointId>(() =>
+    typeof window === "undefined" ? "sm" : viewportBreakpoint(window.innerWidth),
+  );
   const shown = items.filter((item) => !HIDDEN_KINDS.has(item.kind));
   const ids = shown.map((item) => item.id);
   const idsKey = ids.join("|");
@@ -86,6 +89,17 @@ export function Board({
   const seenReset = useRef(resetKey);
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const missing = WIDGET_KINDS.filter((kind) => !HIDDEN_KINDS.has(kind) && !shown.some((item) => item.kind === kind));
+
+  useEffect(() => {
+    const sync = () => setBreakpoint(viewportBreakpoint(window.innerWidth));
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("orientationchange", sync);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("orientationchange", sync);
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.editing = editing ? "1" : "0";
@@ -131,16 +145,13 @@ export function Board({
             layouts={layouts}
             breakpoints={BREAKPOINTS}
             cols={COLS}
+            breakpoint={breakpoint}
             rowHeight={40}
             margin={[12, 12]}
             containerPadding={[0, 0]}
             dragConfig={{ enabled: editing, handle: ".widget-handle", threshold: 4 }}
             resizeConfig={{ enabled: editing, handles: ["se"] }}
-            onBreakpointChange={(next) => {
-              if (next === "lg" || next === "md" || next === "sm") {
-                setBreakpoint(next);
-              }
-            }}
+            onBreakpointChange={() => setBreakpoint(viewportBreakpoint(window.innerWidth))}
             onDragStop={(layout) => save(breakpoint, layout)}
             onResizeStop={(layout, _previous, item) => {
               if (!item) {

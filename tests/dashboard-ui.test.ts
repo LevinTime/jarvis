@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   LAYOUT_VERSION,
@@ -6,6 +7,7 @@ import {
   packLayouts,
   readDashboardLayouts,
   serializeDashboardLayouts,
+  viewportBreakpoint,
 } from "../src/web-logic/dashboard-layout.ts";
 import { layoutDayBar, renderDayBar } from "../src/web-logic/day-timeline.ts";
 import { orbMoves, resolveOrbState, SPEAK_FOR_MS, type OrbMessage } from "../src/web-logic/orb-state.ts";
@@ -107,6 +109,30 @@ test("saved dashboard layout falls back when the value is broken or old", () => 
   assert.equal(read.lg.some((tile) => tile.i === "notes"), true);
   assert.equal(read.lg.some((tile) => tile.i === "cost"), false);
   assert.equal(serializeDashboardLayouts(read).includes(`"version":${LAYOUT_VERSION}`), true);
+});
+
+test("each device width picks its own dashboard columns", () => {
+  assert.equal(viewportBreakpoint(428), "sm");
+  assert.equal(viewportBreakpoint(639), "sm");
+  assert.equal(viewportBreakpoint(640), "md");
+  assert.equal(viewportBreakpoint(1023), "md");
+  assert.equal(viewportBreakpoint(1024), "lg");
+  assert.equal(viewportBreakpoint(1920), "lg");
+});
+
+test("the shell keeps the iphone constraints and a centered desktop column", () => {
+  const css = readFileSync(new URL("../web/src/styles.css", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../web/index.html", import.meta.url), "utf8");
+  assert.match(html, /viewport-fit=cover/);
+  assert.equal(html.includes("maximum-scale"), false);
+  assert.equal(html.includes("user-scalable"), false);
+  assert.match(css, /100dvh/);
+  assert.match(css, /display-mode:\s*standalone/);
+  assert.match(css, /overscroll-behavior:\s*none/);
+  assert.match(css, /font-size:\s*max\(16px,\s*1rem\)/);
+  assert.match(css, /touch-action:\s*manipulation/);
+  assert.match(css, /safe-area-inset-bottom/);
+  assert.match(css, /1280px/);
 });
 
 test("orb motion stops for reduced motion and a hidden tab", () => {

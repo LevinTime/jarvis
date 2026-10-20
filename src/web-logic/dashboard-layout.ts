@@ -16,6 +16,17 @@ export type DashboardLayouts = Record<BreakpointId, TileLayout[]>;
 
 export const BREAKPOINTS: Record<BreakpointId, number> = { lg: 1024, md: 640, sm: 0 };
 export const COLS: Record<BreakpointId, number> = { lg: 12, md: 8, sm: 4 };
+
+/** Phone under 640, tablet until 1024, desktop from 1024. Uses the viewport, not the padded grid. */
+export function viewportBreakpoint(width: number): BreakpointId {
+  if (width >= 1024) {
+    return "lg";
+  }
+  if (width >= 640) {
+    return "md";
+  }
+  return "sm";
+}
 export const BREAKPOINT_IDS: readonly BreakpointId[] = ["lg", "md", "sm"];
 
 const DEFAULT_SIZE: Record<string, TileSize> = {

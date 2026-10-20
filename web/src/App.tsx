@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import { CalendarDays, House, ListChecks, MessageCircle, SquareTerminal } from "lucide-react";
+import { ArrowLeft, CalendarDays, House, ListChecks, MessageCircle, RotateCw, SquareTerminal } from "lucide-react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { DEFAULT_T3_URL, DEFAULT_WIDGETS, normalizeSettings, type AppSettings, type WidgetItem } from "../../src/settings/model.ts";
 import { ApiError, api } from "./api.ts";
@@ -325,6 +325,25 @@ export function App() {
     embla?.scrollTo(next);
   }
 
+  function back() {
+    if (usageOpen) {
+      setUsageOpen(false);
+      return;
+    }
+    if (memoryOpen) {
+      setMemoryOpen(false);
+      setMistakeStamp((value) => value + 1);
+      return;
+    }
+    if (settingsOpen) {
+      setSettingsOpen(false);
+      return;
+    }
+    if (index > 0) {
+      go(index - 1);
+    }
+  }
+
   async function send(text: string) {
     const clientId = crypto.randomUUID();
     const optimistic: ChatMessage = {
@@ -480,7 +499,18 @@ export function App() {
           </section>
         </div>
       </div>
-      <nav className="dock-wrap" aria-label={t("nav.pages")}>
+      <div className="dock-wrap">
+        <button
+          type="button"
+          className="chrome-btn"
+          onClick={back}
+          aria-label={t("common.back")}
+          aria-disabled={usageOpen || memoryOpen || settingsOpen || index > 0 ? undefined : true}
+          disabled={!(usageOpen || memoryOpen || settingsOpen || index > 0)}
+        >
+          <ArrowLeft strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      <nav aria-label={t("nav.pages")}>
         <div className="dock" ref={dockRef}>
           <span className="nav-indicator" aria-hidden="true" />
           {PAGES.map((page, pageIndex) => (
@@ -504,6 +534,10 @@ export function App() {
           ))}
         </div>
       </nav>
+        <button type="button" className="chrome-btn" onClick={() => { pulse(); void load(); }} aria-label={t("common.refresh")}>
+          <RotateCw strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      </div>
       {settingsOpen ? (
         <Settings
           settings={settings}
