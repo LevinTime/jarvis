@@ -1,11 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { berlinParts } from "@jarvis/dates.ts";
-import { swipeAxis } from "@jarvis/gesture.ts";
+import { resolveOrbState } from "@jarvis/orb-state.ts";
 import type { WidgetItem } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
-import { useI18n } from "../i18n/index.ts";
+import { getLocale, useI18n } from "../i18n/index.ts";
+import { Orb } from "../orb/Orb.tsx";
 import type { ChatMessage, Note, StatusResponse, Task } from "../types.ts";
-import { Empty, Lamp, Sheet, Skeleton } from "../ui.tsx";
+import { Empty, Sheet, Skeleton } from "../ui.tsx";
 
 const Board = lazy(() => import("../widgets/Board.tsx").then((mod) => ({ default: mod.Board })));
 
@@ -61,9 +62,31 @@ export function Dashboard({
   const t = useI18n();
   const [notesOpen, setNotesOpen] = useState(false);
   const [mistakes, setMistakes] = useState(0);
-  const pull = useRef<{ x: number; y: number } | null>(null);
+  const [clock, setClock] = useState(() => new Date());
+  const [speakTick, setSpeakTick] = useState(0);
   const budget = status?.usage?.budget;
   const link = connection === "connected" ? t("dash.live") : connection === "connecting" ? t("dash.connecting") : t("dash.offline");
+  const orb = resolveOrbState({ messages, now: Date.now() });
+  const parts = berlinParts(clock);
+  const dateLabel = new Intl.DateTimeFormat(getLocale() === "en" ? "en-GB" : "de-DE", {
+    timeZone: "Europe/Berlin",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(clock);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClock(new Date()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (orb !== "speaking") {
+      return;
+    }
+    const id = window.setTimeout(() => setSpeakTick((value) => value + 1), 400);
+    return () => window.clearTimeout(id);
+  }, [orb, speakTick, messages]);
 
   useEffect(() => {
     let gone = false;
@@ -81,32 +104,19 @@ export function Dashboard({
 
   return (
     <div className="stack">
-      <header className="top">
-        <div className="brand">
-          <Lamp className="lg" />
-          <div>
-            <p className="eyebrow">Jarvis</p>
-            <h1>{greeting(new Date(), t)}, Levin</h1>
-            <p className="hint">{t("dash.mistakes", { count: mistakes })}</p>
-            <p
-              className="hint"
-              data-no-swipe
-              onPointerDown={(event) => {
-                pull.current = { x: event.clientX, y: event.clientY };
-              }}
-              onPointerUp={(event) => {
-                if (!pull.current) return;
-                const dx = event.clientX - pull.current.x;
-                const dy = event.clientY - pull.current.y;
-                pull.current = null;
-                if (swipeAxis(dx, dy) === "y" && dy > 0) onUsage();
-              }}
-            >
-              {t("dash.costHint")}
-            </p>
-          </div>
+      <header className="dash-head">
+        <div className="dash-greet">
+          <h1>{greeting(clock, t)}, Levin</h1>
+          <p className="dash-date">
+            {dateLabel}
+            <span className="dash-time">
+              {String(parts.hour).padStart(2, "0")}:{String(parts.minute).padStart(2, "0")}
+            </span>
+          </p>
+          <p className="dash-date">{t("dash.mistakes", { count: mistakes })}</p>
         </div>
-        <div className="stack">
+        <Orb state={orb} />
+        <div className="dash-tools">
           {editing ? (
             <button type="button" className="text-btn" onClick={() => onEditing(false)}>
               {t("widget.editDone")}
