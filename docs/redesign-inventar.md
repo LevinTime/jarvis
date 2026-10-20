@@ -130,3 +130,36 @@ Bot, `prompts/system.md`, Aufgaben-Logik, Wiederholung, Gedächtnis-Speicher, Te
 - Dichte und Textgröße ändern die leeren Flächen kaum.
 
 Vorher-Bilder in `docs/screenshots/vorher/`, je 1920×1080 und 428×926: Heute, Kalender, Aufgaben, Chat, T3. Konsole dabei ohne Fehler. Heute zeigt die gestreckten, fast leeren Karten und die Kosten-Zeile.
+
+## Abgleich nach dem Umbau
+
+Stand nach den UI-Commits auf `main`. `npm test`: **125** bestanden, 0 fehlgeschlagen. `npm run typecheck` grün. Lint-Skript gibt es weiter nicht.
+
+Nachher-Bilder in `docs/screenshots/nachher/`: 1920×1080 und 428×926, jeweils Heute, Anordnen, Orb (idle, listening, thinking, speaking), Kalender, Aufgaben, Chat, T3. Playwright-Konsole ohne Fehler.
+
+### Erhalten
+
+- Seiten Kalender, Heute, Aufgaben, Chat, T3. Wischen über Embla, Leiste „Seiten“ mit denselben fünf Zielen.
+- Telegram in beide Richtungen, SSE, PWA, Gedächtnis, Notizen, Kosten-Check, Selbst-Check, Sprache, Thema, Akzent, Rundung, Animationen, Haptik.
+- Aufgaben anlegen, erledigen, löschen. Kalender mit Monat, Woche und dem großen Stundenraster.
+- Widget-Arten `clock` und `cost` bleiben gültig, damit alte Einstellungen nicht brechen.
+
+### Entfernt (nur die Dashboard-Anzeige)
+
+- Kosten-Kachel und der Hinweis „nach unten für die Kosten“ auf Heute. Die Zahlen liegen unter Einstellungen, „Verbrauch ansehen“.
+- Langer Druck zum Anordnen. Stattdessen der Schalter „Anordnen“.
+- Der Textgrößen-Regler wirkt nicht mehr. Der Wert `textScale` bleibt im Modell, damit die API unverändert bleibt.
+
+### Neu
+
+- Kopfzeile „Guten Tag, Levin“ mit Datum, ohne eigene Box. Orb in der Mitte, Zustände idle, listening, thinking, speaking.
+- Kompakte Status-Chips und die Zeile „n heute · n offen · n Termine“. Darunter bis zu drei Aufgaben, der Rest als „+N“.
+- Tagesleiste 07–22 nur auf Heute. Der große Kalender bleibt auf der Seite Kalender.
+- Raster mit react-grid-layout 2.2.2. Größen S, M, L. Ziehen nur am Griff, nur im Anordnen-Modus. Layout je Breakpoint in `localStorage`, Version 1, Fallback auf das Standardraster.
+- Eigene Spalten: unter 640 px vier, ab 640 acht, ab 1024 zwölf. Inhalt ab 1024 px zentriert, höchstens etwa 1280 px.
+- Dichte Kompakt / Normal / Groß (intern weiter `airy`). Ändert Schrift, Abstand und Kachelhöhe. „Dashboard-Layout zurücksetzen“ in den Einstellungen.
+- Zurück und Aktualisieren in der App. iPhone: `viewport-fit=cover`, `100dvh` im Standalone, Eingaben mindestens 16 px, `overscroll-behavior`, Touch-Ziele 44 px.
+
+### Kosten-Check
+
+`data/usage.json` fehlt lokal. Deshalb zeigt die Oberfläche 0. Web (`npm run web` und `npm start`) und Telegram nutzen dasselbe `createRuntime`: ein Grok-Client, `onUsage` hängt an `data/usage.json`. Es gibt keinen zweiten Zähler. Fehlgeschlagene Aufrufe und unbekannte Modelle zählen absichtlich 0. Kein kleiner Bug, deshalb kein Fix.
