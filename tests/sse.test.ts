@@ -5,7 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { createEventBus } from "../src/events.ts";
 import { createTaskService } from "../src/tasks/service.ts";
-import { createWebApp, startWebServer, WEB_HOST } from "../src/web/server.ts";
+import { createWebApp, SSE_HEARTBEAT_MS, startWebServer, WEB_HOST } from "../src/web/server.ts";
 
 async function readUntil(
   response: Response,
@@ -64,6 +64,10 @@ test("sse replays after Last-Event-ID, sends resync when the buffer is too old, 
     const replay = await fetch(`${base}/api/events`, {
       headers: { "last-event-id": String(first.id) },
     });
+    assert.equal(replay.headers.get("content-type"), "text/event-stream");
+    assert.equal(replay.headers.get("cache-control"), "no-cache");
+    assert.equal(replay.headers.get("x-accel-buffering"), "no");
+    assert.equal(SSE_HEARTBEAT_MS, 15_000);
     const replayBody = await readUntil(replay, `"id":${second.id}`);
     assert.match(replayBody, new RegExp(`id: ${second.id}`));
     assert.doesNotMatch(replayBody, new RegExp(`id: ${first.id}\\b`));

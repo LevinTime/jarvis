@@ -16,13 +16,16 @@ export function useLiveFeed(
   useEffect(() => {
     const store = createLiveState();
     const unsub = store.subscribe(() => setConnection(store.get().connection));
-    const ctrl = new AbortController();
     let stopped = false;
     let attempt = 0;
+    let current: AbortController | null = null;
     const nudge = { fn: () => undefined };
     async function run(): Promise<void> {
       while (!stopped) {
         store.setConnection("connecting");
+        const ctrl = new AbortController();
+        current = ctrl;
+        let failed = false;
         try {
           const response = await fetch("/api/events", {
             headers: { "last-event-id": String(store.get().lastEventId) },
@@ -39,7 +42,7 @@ export function useLiveFeed(
           while (!stopped) {
             const { done, value } = await reader.read();
             if (done) {
-              break;
+              throw new Error("eof");
             }
             buffer += decoder.decode(value, { stream: true });
             const frames = buffer.split("\n\n");
@@ -71,29 +74,42 @@ export function useLiveFeed(
           if (stopped) {
             return;
           }
-          store.setConnection("offline");
-          const delay = reconnectDelayMs(attempt);
-          attempt += 1;
-          await new Promise<void>((resolve) => {
-            const timer = setTimeout(resolve, delay);
-            nudge.fn = () => {
-              clearTimeout(timer);
-              resolve();
-            };
-          });
+          failed = true;
+        } finally {
+          if (current === ctrl) {
+            current = null;
+          }
         }
+        if (!failed || stopped) {
+          continue;
+        }
+        store.setConnection("offline");
+        const delay = reconnectDelayMs(attempt);
+        attempt += 1;
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, delay);
+          nudge.fn = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+        });
       }
     }
     void run();
     const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        nudge.fn();
+      if (document.visibilityState !== "visible") {
+        return;
       }
+      if (current) {
+        current.abort();
+        return;
+      }
+      nudge.fn();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       stopped = true;
-      ctrl.abort();
+      current?.abort();
       document.removeEventListener("visibilitychange", onVisible);
       unsub();
     };

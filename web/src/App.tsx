@@ -140,10 +140,8 @@ export function App() {
     };
     sync();
     viewport.addEventListener("resize", sync);
-    viewport.addEventListener("scroll", sync);
     return () => {
       viewport.removeEventListener("resize", sync);
-      viewport.removeEventListener("scroll", sync);
     };
   }, []);
 
@@ -565,6 +563,7 @@ export function App() {
             pulse();
             setUsageOpen(true);
           }}
+          version={status?.version ?? ""}
         />
       ) : null}
       {memoryOpen ? (

@@ -52,6 +52,7 @@ import {
 } from "./security.ts";
 
 export const WEB_HOST = "127.0.0.1";
+export const SSE_HEARTBEAT_MS = 15_000;
 
 const RANGES = new Set<UsageRange>(["today", "7d", "month", "30d"]);
 const DUE_FILTERS = new Set(["heute", "ueberfaellig", "woche"]);
@@ -748,6 +749,7 @@ export function createWebApp(options: WebAppOptions): Hono {
     if (!events) {
       return c.json(apiError("unavailable", "Events sind nicht verfügbar"), 404);
     }
+    c.header("X-Accel-Buffering", "no");
     return streamSSE(c, async (stream) => {
       const lastRaw = c.req.header("last-event-id");
       const lastId = lastRaw ? Number(lastRaw) : 0;
@@ -793,7 +795,7 @@ export function createWebApp(options: WebAppOptions): Hono {
       }
       heartbeat = setInterval(() => {
         void stream.write(": ping\n\n").catch(() => undefined);
-      }, 25_000);
+      }, SSE_HEARTBEAT_MS);
       while (!stream.aborted && !stream.closed) {
         const event = queue.shift();
         if (!event) {

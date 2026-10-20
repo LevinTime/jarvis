@@ -1,5 +1,5 @@
+import { DEFAULT_T3_URL, type AppSettings, type CostCheckId, type DensityId, type LocaleId, type ThemeId } from "../../../src/settings/model.ts";
 import { useI18n } from "../i18n/index.ts";
-import type { AppSettings, CostCheckId, DensityId, LocaleId, ThemeId } from "../../../src/settings/model.ts";
 
 const COST: CostCheckId[] = ["an", "aus", "kaeufe"];
 
@@ -15,6 +15,7 @@ export function Settings({
   onReset,
   onMemory,
   onUsage,
+  version,
 }: {
   settings: AppSettings;
   t3Field: string;
@@ -24,6 +25,7 @@ export function Settings({
   onReset: () => void;
   onMemory: () => void;
   onUsage: () => void;
+  version: string;
 }) {
   const t = useI18n();
   return (
@@ -127,13 +129,14 @@ export function Settings({
       <section className="settings-card">
         <label className="field">
           <span>{t("settings.t3")}</span>
-          <input type="url" inputMode="url" value={t3Field} onChange={(event) => onT3(event.target.value)} placeholder="http://127.0.0.1:3773" />
+          <input type="url" inputMode="url" value={t3Field} onChange={(event) => onT3(event.target.value)} placeholder={DEFAULT_T3_URL} />
           <p className="hint">{t("settings.t3Hint")}</p>
         </label>
         <button type="button" className="text-btn ghost" onClick={onReset}>
           {t("settings.reset")}
         </button>
         <p className="hint">{t("settings.resetHint")}</p>
+        <p className="hint">{t("settings.version", { version: version || "…" })}</p>
       </section>
     </div>
   );

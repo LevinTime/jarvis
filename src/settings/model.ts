@@ -35,7 +35,7 @@ export type AppSettings = {
   widgets: WidgetItem[];
 };
 
-export const DEFAULT_T3_URL = "http://127.0.0.1:3773";
+export const DEFAULT_T3_URL = "https://levin.tail34013b.ts.net:8443";
 
 export const DEFAULT_WIDGETS: WidgetItem[] = [
   { id: "status", kind: "status", size: "m" },

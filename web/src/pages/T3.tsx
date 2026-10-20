@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DEFAULT_T3_URL } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
 import { useI18n } from "../i18n/index.ts";
 import { Lamp } from "../ui.tsx";
@@ -39,7 +40,7 @@ export function T3Page({ url }: { url: string }) {
         <strong>{up === null ? "…" : up ? t("t3.up") : t("t3.down")}</strong>
         <p>{url || t("t3.missing")}</p>
         <p>{t("t3.noThread")}</p>
-        <a className="text-btn" href={url || "http://127.0.0.1:3773"} target="_blank" rel="noreferrer">
+        <a className="text-btn" href={url || DEFAULT_T3_URL} target="_blank" rel="noreferrer">
           {t("t3.open")}
         </a>
       </section>

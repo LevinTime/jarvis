@@ -27,6 +27,6 @@ Die T3-Seite ist eine eigene Swipe-Seite (Kalender, Heute, Aufgaben, Chat, T3). 
 
 ## Adresse
 
-`JARVIS_T3_URL` in der Umgebung ist die Vorgabe, standardmäßig `http://127.0.0.1:3773`. Die App darf sie in den Einstellungen überschreiben. Leer heißt: die Vorgabe gilt. Erlaubt sind nur `http` und `https`, ohne Benutzername, Passwort, Query oder Hash. Die gespeicherte Adresse liegt in `data/settings.json` und lokal im Browser, nicht im Bundle.
+`JARVIS_T3_URL` in der Umgebung ist die Vorgabe, standardmäßig `https://levin.tail34013b.ts.net:8443`. Die App darf sie in den Einstellungen überschreiben. Leer heißt: die Vorgabe gilt. Erlaubt sind nur `http` und `https`, ohne Benutzername, Passwort, Query oder Hash. Die gespeicherte Adresse liegt in `data/settings.json` und lokal im Browser, nicht im Bundle.
 
-Fürs Handy im Tailnet die HTTPS-Adresse aus Tailscale Serve eintragen, zum Beispiel `https://<rechner>.<tailnet>.ts.net`. Jarvis richtet `tailscale serve` nicht selbst ein.
+Auf dem Handy zeigt Tailscale Serve Port 443 auf Jarvis (`127.0.0.1:3000`) und Port 8443 auf T3 (`127.0.0.1:3773`). Kein Funnel.

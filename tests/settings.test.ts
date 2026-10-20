@@ -58,6 +58,7 @@ async function withSettings(options: { store?: boolean; t3Url?: string } = {}) {
 }
 
 test("settings defaults clamp scales and reject bad T3 addresses", () => {
+  assert.equal(DEFAULT_T3_URL, "https://levin.tail34013b.ts.net:8443");
   assert.equal(readDefaultT3Url(undefined), DEFAULT_T3_URL);
   assert.equal(readDefaultT3Url("http://127.0.0.1:4555"), "http://127.0.0.1:4555");
   assert.equal(readDefaultT3Url("ftp://nope"), DEFAULT_T3_URL);
