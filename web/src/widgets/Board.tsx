@@ -48,6 +48,14 @@ function writeStoredLayout(layouts: DashboardLayouts): void {
   }
 }
 
+function readPx(name: string, fallback: number): number {
+  if (typeof document === "undefined") {
+    return fallback;
+  }
+  const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 function toTiles(layout: Layout): TileLayout[] {
   return layout.map((item) => ({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h }));
 }
@@ -79,6 +87,8 @@ export function Board({
 }) {
   const t = useI18n();
   const [adding, setAdding] = useState(false);
+  const [rowHeight, setRowHeight] = useState(() => readPx("--row", 40));
+  const [gap, setGap] = useState(() => readPx("--gap", 14));
   const [breakpoint, setBreakpoint] = useState<BreakpointId>(() =>
     typeof window === "undefined" ? "sm" : viewportBreakpoint(window.innerWidth),
   );
@@ -89,6 +99,17 @@ export function Board({
   const seenReset = useRef(resetKey);
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const missing = WIDGET_KINDS.filter((kind) => !HIDDEN_KINDS.has(kind) && !shown.some((item) => item.kind === kind));
+
+  useEffect(() => {
+    const sync = () => {
+      setRowHeight(readPx("--row", 40));
+      setGap(readPx("--gap", 14));
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-density"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const sync = () => setBreakpoint(viewportBreakpoint(window.innerWidth));
@@ -146,8 +167,8 @@ export function Board({
             breakpoints={BREAKPOINTS}
             cols={COLS}
             breakpoint={breakpoint}
-            rowHeight={40}
-            margin={[12, 12]}
+            rowHeight={rowHeight}
+            margin={[gap, gap]}
             containerPadding={[0, 0]}
             dragConfig={{ enabled: editing, handle: ".widget-handle", threshold: 4 }}
             resizeConfig={{ enabled: editing, handles: ["se"] }}

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { berlinParts } from "@jarvis/dates.ts";
 import { resolveOrbState } from "@jarvis/orb-state.ts";
-import { DEFAULT_WIDGETS, type WidgetItem } from "../../../src/settings/model.ts";
+import type { WidgetItem } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
 import { getLocale, useI18n } from "../i18n/index.ts";
 import { Orb } from "../orb/Orb.tsx";
@@ -29,6 +29,8 @@ export function Dashboard({
   widgets,
   editing,
   onEditing,
+  resetKey,
+  onResetLayout,
   onWidgets,
   onOpen,
   onRefresh,
@@ -48,6 +50,8 @@ export function Dashboard({
   widgets: WidgetItem[];
   editing: boolean;
   onEditing: (value: boolean) => void;
+  resetKey: number;
+  onResetLayout: () => void;
   onWidgets: (items: WidgetItem[]) => void;
   onOpen: (page: number) => void;
   onRefresh: () => void;
@@ -62,7 +66,6 @@ export function Dashboard({
   const [mistakes, setMistakes] = useState(0);
   const [clock, setClock] = useState(() => new Date());
   const [speakTick, setSpeakTick] = useState(0);
-  const [resetKey, setResetKey] = useState(0);
   const link = connection === "connected" ? t("dash.live") : connection === "connecting" ? t("dash.connecting") : t("dash.offline");
   const orb = resolveOrbState({ messages, now: Date.now() });
   const parts = berlinParts(clock);
@@ -120,14 +123,7 @@ export function Dashboard({
               <button type="button" className="text-btn" onClick={() => onEditing(false)}>
                 {t("widget.editDone")}
               </button>
-              <button
-                type="button"
-                className="text-btn ghost"
-                onClick={() => {
-                  onWidgets(DEFAULT_WIDGETS.map((item) => ({ ...item })));
-                  setResetKey((value) => value + 1);
-                }}
-              >
+              <button type="button" className="text-btn ghost" onClick={onResetLayout}>
                 {t("common.reset")}
               </button>
             </>

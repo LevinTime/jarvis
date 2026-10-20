@@ -14,6 +14,7 @@ import { Settings } from "./pages/Settings.tsx";
 import { T3Page } from "./pages/T3.tsx";
 import { Todos } from "./pages/Todos.tsx";
 import type { ChatMessage, JarvisEvent, Note, StatusResponse, Task, TaskStatus } from "./types.ts";
+import { LAYOUT_STORAGE_KEY } from "@jarvis/dashboard-layout.ts";
 import { allowPageDrag } from "@jarvis/gesture.ts";
 import { Lamp, Skeleton, pulse } from "./ui.tsx";
 
@@ -54,6 +55,7 @@ export function App() {
   const [t3Field, setT3Field] = useState(() => readLocalSettings().t3Url || DEFAULT_T3_URL);
   const [defaultT3, setDefaultT3] = useState(DEFAULT_T3_URL);
   const [editing, setEditing] = useState(false);
+  const [layoutReset, setLayoutReset] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [mistakeStamp, setMistakeStamp] = useState(0);
@@ -297,6 +299,16 @@ export function App() {
     }, 350);
   }
 
+  function resetDashboard() {
+    try {
+      localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    } catch {
+      /* private mode */
+    }
+    updateSettings({ widgets: DEFAULT_WIDGETS.map((item) => ({ ...item })) });
+    setLayoutReset((value) => value + 1);
+  }
+
   function updateSettings(patch: Partial<AppSettings>) {
     dirty.current = true;
     setSettings((current) => {
@@ -460,6 +472,8 @@ export function App() {
               widgets={settings.widgets}
               editing={editing}
               onEditing={setEditing}
+              resetKey={layoutReset}
+              onResetLayout={resetDashboard}
               onWidgets={(items: WidgetItem[]) => updateSettings({ widgets: items })}
               onOpen={go}
               onRefresh={() => void load()}
@@ -545,7 +559,7 @@ export function App() {
           onChange={updateSettings}
           onT3={onT3}
           onClose={() => setSettingsOpen(false)}
-          onReset={() => updateSettings({ widgets: DEFAULT_WIDGETS.map((item) => ({ ...item })) })}
+          onReset={resetDashboard}
           onMemory={() => setMemoryOpen(true)}
           onUsage={() => {
             pulse();

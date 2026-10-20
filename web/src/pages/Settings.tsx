@@ -80,10 +80,6 @@ export function Settings({
         </button>
       </section>
       <section className="settings-card">
-        <label className="field">
-          <span>{t("settings.scale")} {Math.round(settings.textScale * 100)}%</span>
-          <input className="range" type="range" min={85} max={130} value={Math.round(settings.textScale * 100)} onChange={(event) => onChange({ textScale: Number(event.target.value) / 100 })} />
-        </label>
         <span className="kicker">{t("settings.density")}</span>
         <div className="choice">
           {DENSITIES.map((density) => (

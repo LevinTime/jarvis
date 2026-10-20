@@ -53,7 +53,7 @@ export function applyAppearance(settings: AppSettings): void {
   root.dataset.density = settings.density;
   root.dataset.motion = reduce ? "reduce" : "full";
   root.lang = settings.locale;
-  root.style.setProperty("--text-scale", String(settings.textScale));
+  root.style.removeProperty("--text-scale");
   root.style.setProperty("--radius-scale", String(settings.radius));
   if (settings.accent) {
     root.dataset.accent = "custom";

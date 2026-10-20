@@ -9,6 +9,7 @@ import {
   serializeDashboardLayouts,
   viewportBreakpoint,
 } from "../src/web-logic/dashboard-layout.ts";
+import { densityVars } from "../src/web-logic/density.ts";
 import { layoutDayBar, renderDayBar } from "../src/web-logic/day-timeline.ts";
 import { orbMoves, resolveOrbState, SPEAK_FOR_MS, type OrbMessage } from "../src/web-logic/orb-state.ts";
 
@@ -133,6 +134,24 @@ test("the shell keeps the iphone constraints and a centered desktop column", () 
   assert.match(css, /touch-action:\s*manipulation/);
   assert.match(css, /safe-area-inset-bottom/);
   assert.match(css, /1280px/);
+});
+
+test("density changes type, space and tile height", () => {
+  const compact = densityVars("compact");
+  const normal = densityVars("normal");
+  const airy = densityVars("airy");
+  assert.ok(airy.text - compact.text >= 0.15);
+  assert.ok(airy.row - compact.row >= 12);
+  assert.equal(normal.text, 1);
+  const css = readFileSync(new URL("../web/src/styles.css", import.meta.url), "utf8");
+  const appearance = readFileSync(new URL("../web/src/appearance.ts", import.meta.url), "utf8");
+  assert.match(css, new RegExp(`html\\[data-density="compact"\\][\\s\\S]*?--text-scale:\\s*${compact.text}`));
+  assert.match(css, new RegExp(`html\\[data-density="compact"\\][\\s\\S]*?--row:\\s*${compact.row}px`));
+  assert.match(css, new RegExp(`html\\[data-density="airy"\\][\\s\\S]*?--text-scale:\\s*${airy.text}`));
+  assert.match(css, new RegExp(`html\\[data-density="airy"\\][\\s\\S]*?--row:\\s*${airy.row}px`));
+  assert.match(css, new RegExp(`--row:\\s*${normal.row}px`));
+  assert.equal(appearance.includes('setProperty("--text-scale"'), false);
+  assert.match(appearance, /removeProperty\("--text-scale"\)/);
 });
 
 test("orb motion stops for reduced motion and a hidden tab", () => {
