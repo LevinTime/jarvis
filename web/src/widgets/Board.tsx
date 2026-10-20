@@ -9,6 +9,7 @@ import {
   BREAKPOINTS,
   COLS,
   LAYOUT_STORAGE_KEY,
+  fitTileHeights,
   layoutsEqual,
   mergeLayouts,
   nearestSize,
@@ -19,7 +20,9 @@ import {
   viewportBreakpoint,
   type BreakpointId,
   type DashboardLayouts,
+  type TileCounts,
   type TileLayout,
+  type TileSize,
 } from "@jarvis/dashboard-layout.ts";
 import { minutesInBerlin, type DayEvent } from "@jarvis/day-timeline.ts";
 import { WIDGET_KINDS, type WidgetItem, type WidgetKind } from "../../../src/settings/model.ts";
@@ -54,6 +57,23 @@ function readPx(name: string, fallback: number): number {
   }
   const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
   return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function openCounts(tasks: Task[]): TileCounts {
+  const today = berlinParts(new Date()).key;
+  const open = tasks.filter((task) => task.status !== "erledigt");
+  return {
+    tasks: open.length,
+    events: open.filter((task) => Boolean(task.faelligAm) && berlinParts(new Date(task.faelligAm ?? "")).key === today).length,
+  };
+}
+
+function sizeRecord(items: readonly { id: string; size: TileSize }[]): Record<string, TileSize> {
+  const sizes: Record<string, TileSize> = {};
+  for (const item of items) {
+    sizes[item.id] = item.size;
+  }
+  return sizes;
 }
 
 function toTiles(layout: Layout): TileLayout[] {
@@ -95,7 +115,12 @@ export function Board({
   const shown = items.filter((item) => !HIDDEN_KINDS.has(item.kind));
   const ids = shown.map((item) => item.id);
   const idsKey = ids.join("|");
-  const [layouts, setLayouts] = useState(() => readDashboardLayouts(readStoredLayout(), ids));
+  const counts = openCounts(tasks);
+  const countsKey = `${counts.tasks}:${counts.events}`;
+  const sizesKey = shown.map((item) => `${item.id}:${item.size}`).join("|");
+  const [layouts, setLayouts] = useState(() =>
+    fitTileHeights(readDashboardLayouts(readStoredLayout(), ids), counts, sizeRecord(shown)),
+  );
   const seenReset = useRef(resetKey);
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const missing = WIDGET_KINDS.filter((kind) => !HIDDEN_KINDS.has(kind) && !shown.some((item) => item.kind === kind));
@@ -138,15 +163,41 @@ export function Board({
   }, [idsKey]);
 
   useEffect(() => {
+    const sizes: Record<string, TileSize> = {};
+    for (const part of sizesKey.split("|")) {
+      if (!part) continue;
+      const [id, size] = part.split(":");
+      if (id && (size === "s" || size === "m" || size === "l")) sizes[id] = size;
+    }
+    const [taskText, eventText] = countsKey.split(":");
+    const nextCounts = { tasks: Number(taskText) || 0, events: Number(eventText) || 0 };
+    setLayouts((current) => {
+      const fitted = fitTileHeights(current, nextCounts, sizes);
+      return layoutsEqual(current, fitted) ? current : fitted;
+    });
+  }, [countsKey, sizesKey]);
+
+  useEffect(() => {
     if (seenReset.current === resetKey) {
       return;
     }
     seenReset.current = resetKey;
     const nextIds = idsKey.length === 0 ? [] : idsKey.split("|");
-    const next = packLayouts(nextIds);
+    const sizes: Record<string, TileSize> = {};
+    for (const part of sizesKey.split("|")) {
+      if (!part) continue;
+      const [id, size] = part.split(":");
+      if (id && (size === "s" || size === "m" || size === "l")) sizes[id] = size;
+    }
+    const [taskText, eventText] = countsKey.split(":");
+    const next = fitTileHeights(
+      packLayouts(nextIds),
+      { tasks: Number(taskText) || 0, events: Number(eventText) || 0 },
+      sizes,
+    );
     setLayouts(next);
     writeStoredLayout(next);
-  }, [resetKey, idsKey]);
+  }, [resetKey, idsKey, countsKey, sizesKey]);
 
   function save(breakpointId: BreakpointId, layout: Layout) {
     setLayouts((current) => {

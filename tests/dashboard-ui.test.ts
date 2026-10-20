@@ -4,9 +4,11 @@ import { test } from "node:test";
 import {
   LAYOUT_VERSION,
   layoutsEqual,
+  fitTileHeights,
   packLayouts,
   readDashboardLayouts,
   serializeDashboardLayouts,
+  spanFor,
   viewportBreakpoint,
 } from "../src/web-logic/dashboard-layout.ts";
 import { densityVars } from "../src/web-logic/density.ts";
@@ -110,6 +112,20 @@ test("saved dashboard layout falls back when the value is broken or old", () => 
   assert.equal(read.lg.some((tile) => tile.i === "notes"), true);
   assert.equal(read.lg.some((tile) => tile.i === "cost"), false);
   assert.equal(serializeDashboardLayouts(read).includes(`"version":${LAYOUT_VERSION}`), true);
+});
+
+test("tiles stay as tall as their content", () => {
+  const empty = spanFor("tasks", "m", 12, { tasks: 0, events: 0 });
+  const full = spanFor("tasks", "m", 12, { tasks: 7, events: 0 });
+  assert.equal(empty.h, 2);
+  assert.equal(full.h, 4);
+  assert.equal(spanFor("events", "m", 12).h, 2);
+  assert.equal(spanFor("events", "m", 12, { tasks: 0, events: 2 }).h, 3);
+  const packed = packLayouts(["tasks", "events"]);
+  const fitted = fitTileHeights(packed, { tasks: 3, events: 1 }, { tasks: "m", events: "m" });
+  assert.equal(fitted.lg.find((tile) => tile.i === "tasks")?.h, 4);
+  assert.equal(fitted.lg.find((tile) => tile.i === "tasks")?.x, packed.lg.find((tile) => tile.i === "tasks")?.x);
+  assert.equal(fitted.lg.find((tile) => tile.i === "events")?.h, 3);
 });
 
 test("each device width picks its own dashboard columns", () => {

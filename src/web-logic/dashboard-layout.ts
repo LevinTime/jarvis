@@ -31,14 +31,32 @@ export const BREAKPOINT_IDS: readonly BreakpointId[] = ["lg", "md", "sm"];
 
 const DEFAULT_SIZE: Record<string, TileSize> = {
   status: "m",
-  tasks: "l",
-  events: "l",
+  tasks: "m",
+  events: "m",
   quick: "m",
   notes: "s",
   chat: "s",
   t3: "m",
   memory: "s",
 };
+
+export type TileCounts = { tasks: number; events: number };
+
+const EMPTY_COUNTS: TileCounts = { tasks: 0, events: 0 };
+
+function contentRows(id: string, counts: TileCounts): number {
+  if (id === "tasks") {
+    const shown = Math.min(3, counts.tasks);
+    return shown === 0 ? 2 : 1 + shown;
+  }
+  if (id === "events") {
+    return counts.events > 0 ? 3 : 2;
+  }
+  if (id === "quick" || id === "notes" || id === "chat" || id === "t3" || id === "memory") {
+    return 2;
+  }
+  return 1;
+}
 
 function colsFor(breakpoint: BreakpointId): number {
   return COLS[breakpoint];
@@ -48,17 +66,37 @@ export function defaultTileSize(id: string): TileSize {
   return DEFAULT_SIZE[id] ?? "m";
 }
 
-/** S is one unit, M and L are two units wide. L is one row taller than the content height. */
-export function spanFor(id: string, size: TileSize, cols: number): { w: number; h: number } {
+/** S is one unit wide, M and L are two. Height follows the content. L adds one row. */
+export function spanFor(
+  id: string,
+  size: TileSize,
+  cols: number,
+  counts: TileCounts = EMPTY_COUNTS,
+): { w: number; h: number } {
   if (id === "status") {
     return { w: cols, h: 1 };
   }
   const unit = cols >= 12 ? 3 : 2;
   const w = size === "s" ? unit : Math.min(cols, unit * 2);
-  const content =
-    id === "tasks" ? 4 : id === "events" ? 3 : id === "quick" || id === "notes" || id === "chat" || id === "t3" || id === "memory" ? 2 : 1;
-  const h = size === "l" ? content + 1 : content;
-  return { w, h };
+  const content = contentRows(id, counts);
+  return { w, h: size === "l" ? content + 1 : content };
+}
+
+/** Keeps x, y and w. Updates only the row count so a tile is not taller than its content. */
+export function fitTileHeights(
+  layouts: DashboardLayouts,
+  counts: TileCounts,
+  sizes: Readonly<Record<string, TileSize>>,
+): DashboardLayouts {
+  const next = {} as DashboardLayouts;
+  for (const breakpoint of BREAKPOINT_IDS) {
+    const cols = colsFor(breakpoint);
+    next[breakpoint] = layouts[breakpoint].map((tile) => ({
+      ...tile,
+      h: spanFor(tile.i, sizes[tile.i] ?? defaultTileSize(tile.i), cols, counts).h,
+    }));
+  }
+  return next;
 }
 
 export function nearestSize(w: number, h: number, id: string, cols: number): TileSize {
