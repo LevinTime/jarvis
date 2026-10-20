@@ -14,6 +14,7 @@ export function Settings({
   onClose,
   onReset,
   onMemory,
+  onUsage,
 }: {
   settings: AppSettings;
   t3Field: string;
@@ -22,6 +23,7 @@ export function Settings({
   onClose: () => void;
   onReset: () => void;
   onMemory: () => void;
+  onUsage: () => void;
 }) {
   const t = useI18n();
   return (
@@ -105,6 +107,9 @@ export function Settings({
       </section>
       <section className="settings-card">
         <span className="kicker">{t("settings.cost")}</span>
+        <button type="button" className="text-btn ghost" onClick={onUsage}>
+          {t("settings.usage")}
+        </button>
         <div className="choice" role="group" aria-label={t("settings.cost")}>
           {COST.map((id) => (
             <button key={id} type="button" className="text-btn ghost" aria-pressed={settings.costCheck === id} onClick={() => onChange({ costCheck: id })}>

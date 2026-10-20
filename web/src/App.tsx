@@ -443,10 +443,6 @@ export function App() {
               onEditing={setEditing}
               onWidgets={(items: WidgetItem[]) => updateSettings({ widgets: items })}
               onOpen={go}
-              onUsage={() => {
-                pulse();
-                setUsageOpen(true);
-              }}
               onRefresh={() => void load()}
               onCloseNote={async (id) => {
                 await api(`/api/notes/${id}`, { method: "PATCH", body: JSON.stringify({ offen: false }) });
@@ -517,6 +513,10 @@ export function App() {
           onClose={() => setSettingsOpen(false)}
           onReset={() => updateSettings({ widgets: DEFAULT_WIDGETS.map((item) => ({ ...item })) })}
           onMemory={() => setMemoryOpen(true)}
+          onUsage={() => {
+            pulse();
+            setUsageOpen(true);
+          }}
         />
       ) : null}
       {memoryOpen ? (

@@ -11,12 +11,16 @@ import {
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { berlinParts, bucketTask } from "@jarvis/dates.ts";
+import { minutesInBerlin, type DayEvent } from "@jarvis/day-timeline.ts";
 import { DEFAULT_WIDGETS, WIDGET_KINDS, type WidgetItem, type WidgetKind, type WidgetSize } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
-import { clock, usd } from "../format.ts";
+import { clock } from "../format.ts";
 import { useI18n } from "../i18n/index.ts";
 import type { ChatMessage, Note, StatusResponse, Task } from "../types.ts";
 import { pulse } from "../ui.tsx";
+import { DayBar } from "./DayBar.tsx";
+
+const HIDDEN_KINDS = new Set<WidgetKind>(["cost", "clock"]);
 
 const NEXT_SIZE: Record<WidgetSize, WidgetSize> = { s: "m", m: "l", l: "s" };
 
@@ -26,7 +30,6 @@ export function Board({
   onEditing,
   onChange,
   onOpen,
-  onUsage,
   onCreate,
   onMemory,
   status,
@@ -39,7 +42,6 @@ export function Board({
   onEditing: (value: boolean) => void;
   onChange: (items: WidgetItem[]) => void;
   onOpen: (page: number) => void;
-  onUsage: () => void;
   onCreate: (input: { titel: string }) => Promise<void>;
   onMemory: () => void;
   status: StatusResponse | null;
@@ -54,7 +56,8 @@ export function Board({
   );
   const hold = useRef<number | null>(null);
   const [adding, setAdding] = useState(false);
-  const missing = WIDGET_KINDS.filter((kind) => !items.some((item) => item.kind === kind));
+  const shown = items.filter((item) => !HIDDEN_KINDS.has(item.kind));
+  const missing = WIDGET_KINDS.filter((kind) => !HIDDEN_KINDS.has(kind) && !shown.some((item) => item.kind === kind));
 
   useEffect(() => {
     document.documentElement.dataset.editing = editing ? "1" : "0";
@@ -68,12 +71,12 @@ export function Board({
     if (!over || active.id === over.id) {
       return;
     }
-    const from = items.findIndex((item) => item.id === active.id);
-    const to = items.findIndex((item) => item.id === over.id);
+    const from = shown.findIndex((item) => item.id === active.id);
+    const to = shown.findIndex((item) => item.id === over.id);
     if (from < 0 || to < 0) {
       return;
     }
-    onChange(arrayMove(items, from, to));
+    onChange(arrayMove(shown, from, to));
     pulse(8);
   }
 
@@ -102,9 +105,9 @@ export function Board({
       }}
     >
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={items.map((item) => item.id)} strategy={rectSortingStrategy}>
+        <SortableContext items={shown.map((item) => item.id)} strategy={rectSortingStrategy}>
           <div className="widget-grid">
-            {items.map((item) => (
+            {shown.map((item) => (
               <WidgetFrame
                 key={item.id}
                 item={item}
@@ -119,7 +122,6 @@ export function Board({
                   notes={notes}
                   messages={messages}
                   onOpen={onOpen}
-                  onUsage={onUsage}
                   onCreate={onCreate}
                   onMemory={onMemory}
                   locked={editing}
@@ -220,7 +222,6 @@ function WidgetBody({
   notes,
   messages,
   onOpen,
-  onUsage,
   onCreate,
   onMemory,
   locked,
@@ -231,7 +232,6 @@ function WidgetBody({
   notes: Note[];
   messages: ChatMessage[];
   onOpen: (page: number) => void;
-  onUsage: () => void;
   onCreate: (input: { titel: string }) => Promise<void>;
   onMemory: () => void;
   locked: boolean;
@@ -244,65 +244,63 @@ function WidgetBody({
     }
   };
   if (item.kind === "clock") {
-    return <Clock locked={locked} />;
+    return <Clock />;
   }
   if (item.kind === "status") {
     const bot = status?.telegram.connected ? "ok" : status?.telegram.configured ? "warn" : "bad";
     const model = status?.llm.configured && !status.llm.lastError ? "ok" : status?.llm.lastError ? "warn" : "bad";
     const mirror = status?.telegram.mirror ? "ok" : status?.telegram.configured ? "warn" : "bad";
     return (
-      <div>
-        <span className="kicker">{t("widget.status")}</span>
-        <div className="lights">
-          <div className="light"><span className={`dot ${bot}`} />{t("widget.bot")}</div>
-          <div className="light"><span className={`dot ${model}`} />{t("widget.model")}</div>
-          <div className="light"><span className={`dot ${mirror}`} />{t("widget.mirror")}</div>
-        </div>
+      <div className="chip-row" aria-label={t("widget.status")}>
+        <span className="chip"><span className={`dot ${bot}`} />{t("widget.bot")}</span>
+        <span className="chip"><span className={`dot ${model}`} />{t("widget.model")}</span>
+        <span className="chip"><span className={`dot ${mirror}`} />{t("widget.mirror")}</span>
       </div>
     );
   }
   if (item.kind === "tasks") {
     const due = tasks.filter((task) => bucketTask(task, today) === "today").length;
-    const overdue = tasks.filter((task) => bucketTask(task, today) === "overdue").length;
-    const open = tasks.filter((task) => task.status !== "erledigt").length;
+    const open = tasks.filter((task) => task.status !== "erledigt");
+    const appointments = open.filter((task) => task.faelligAm && berlinParts(new Date(task.faelligAm)).key === today).length;
+    const upcoming = open
+      .slice()
+      .sort((a, b) => (a.faelligAm ?? "9999").localeCompare(b.faelligAm ?? "9999"));
+    const preview = upcoming.slice(0, 5);
+    const extra = upcoming.length - preview.length;
     return (
-      <button type="button" className="row body" onClick={() => openTask(2)}>
-        <span className="kicker">{t("widget.tasks")}</span>
-        <h3>{t("widget.due", { count: due })}{overdue > 0 ? ` · ${t("widget.overdue", { count: overdue })}` : ""}</h3>
-        <p className="muted">{t("widget.openCount", { count: open })}</p>
+      <button type="button" className="tile-hit" onClick={() => openTask(2)}>
+        <p className="stat-line">
+          {t("widget.due", { count: due })} · {t("widget.openCount", { count: open.length })} · {t("widget.eventCount", { count: appointments })}
+        </p>
+        <ul className="mini-list">
+          {preview.map((task) => (
+            <li key={task.id}>
+              <span className="mini-time">{task.faelligAm ? clock(task.faelligAm) : t("tasks.noDate")}</span>
+              <span>{task.titel}</span>
+            </li>
+          ))}
+        </ul>
+        {extra > 0 ? <p className="mini-more">{t("widget.more", { count: extra })}</p> : null}
       </button>
     );
   }
   if (item.kind === "events") {
-    const upcoming = tasks
-      .filter((task) => task.status === "offen" && task.faelligAm && berlinParts(new Date(task.faelligAm)).key >= today)
-      .sort((a, b) => (a.faelligAm ?? "").localeCompare(b.faelligAm ?? ""))
-      .slice(0, 3);
+    const events: DayEvent[] = tasks
+      .filter((task) => task.status !== "erledigt" && task.faelligAm && berlinParts(new Date(task.faelligAm)).key === today)
+      .map((task) => ({
+        id: task.id,
+        title: task.titel,
+        startMin: minutesInBerlin(new Date(task.faelligAm ?? "")),
+      }));
     return (
-      <button type="button" className="row body" onClick={() => openTask(0)}>
+      <button type="button" className="tile-hit" onClick={() => openTask(0)}>
         <span className="kicker">{t("widget.events")}</span>
-        {upcoming.length === 0 ? <p>{t("widget.noEvents")}</p> : upcoming.map((task) => (
-          <p key={task.id}>{task.faelligAm ? clock(task.faelligAm) : ""} {task.titel}</p>
-        ))}
+        {events.length === 0 ? <p className="day-next">{t("widget.noEvents")}</p> : <DayBar events={events} now={new Date()} />}
       </button>
     );
   }
   if (item.kind === "cost") {
-    const budget = status?.usage?.budget;
-    const ratio = budget?.ratio ?? 0;
-    return (
-      <button type="button" className="row body" onClick={() => { if (!locked) onUsage(); }}>
-        <span className="kicker">{t("widget.cost")}</span>
-        <h3>{status?.usage ? t("widget.todayUsd", { amount: usd(status.usage.todayUsd) }) : t("widget.noNumbers")}</h3>
-        {budget?.limitUsd ? (
-          <div className="meter" role="meter" aria-label={t("usage.budget")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(1, ratio) * 100)}>
-            <span data-level={budget.level} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
-          </div>
-        ) : (
-          <p>{status?.usage ? t("widget.monthUsd", { amount: usd(status.usage.monthUsd) }) : t("widget.noBudget")}</p>
-        )}
-      </button>
-    );
+    return null;
   }
   if (item.kind === "chat") {
     const last = messages.at(-1);
@@ -336,7 +334,7 @@ function WidgetBody({
   return <T3Status onOpen={() => openTask(4)} />;
 }
 
-function Clock({ locked }: { locked: boolean }) {
+function Clock() {
   const t = useI18n();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -355,7 +353,7 @@ function Clock({ locked }: { locked: boolean }) {
     <div>
       <span className="kicker">{greet}</span>
       <div className="clock-time">{String(parts.hour).padStart(2, "0")}:{String(parts.minute).padStart(2, "0")}</div>
-      {locked ? null : <p className="hint">{t("dash.costHint")}</p>}
+
     </div>
   );
 }

@@ -31,7 +31,6 @@ export function Dashboard({
   onEditing,
   onWidgets,
   onOpen,
-  onUsage,
   onRefresh,
   onCloseNote,
   onCreate,
@@ -51,7 +50,6 @@ export function Dashboard({
   onEditing: (value: boolean) => void;
   onWidgets: (items: WidgetItem[]) => void;
   onOpen: (page: number) => void;
-  onUsage: () => void;
   onRefresh: () => void;
   onCloseNote: (id: string) => void;
   onCreate: (input: { titel: string }) => Promise<void>;
@@ -64,7 +62,6 @@ export function Dashboard({
   const [mistakes, setMistakes] = useState(0);
   const [clock, setClock] = useState(() => new Date());
   const [speakTick, setSpeakTick] = useState(0);
-  const budget = status?.usage?.budget;
   const link = connection === "connected" ? t("dash.live") : connection === "connecting" ? t("dash.connecting") : t("dash.offline");
   const orb = resolveOrbState({ messages, now: Date.now() });
   const parts = berlinParts(clock);
@@ -138,12 +135,6 @@ export function Dashboard({
           <button type="button" className="text-btn ghost" onClick={onRefresh}>{t("common.retry")}</button>
         </div>
       ) : null}
-      {budget && (budget.level === "warn" || budget.level === "over") ? (
-        <div className={`banner ${budget.level === "over" ? "bad" : "warn"}`}>
-          <span>{budget.level === "over" ? t("dash.over") : t("dash.warn")}</span>
-          <button type="button" className="text-btn ghost" onClick={onUsage}>{t("dash.cost")}</button>
-        </div>
-      ) : null}
       {loading && !status ? <Skeleton lines={5} /> : (
         <Suspense fallback={<Skeleton lines={5} />}>
           <Board
@@ -152,7 +143,6 @@ export function Dashboard({
             onEditing={onEditing}
             onChange={onWidgets}
             onOpen={onOpen}
-            onUsage={onUsage}
             onCreate={onCreate}
             onMemory={onMemory}
             status={status}

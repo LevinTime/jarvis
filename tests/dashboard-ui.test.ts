@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { layoutDayBar, renderDayBar } from "../src/web-logic/day-timeline.ts";
 import { orbMoves, resolveOrbState, SPEAK_FOR_MS, type OrbMessage } from "../src/web-logic/orb-state.ts";
 
 const at = Date.parse("2026-10-20T11:00:00.000Z");
@@ -53,6 +54,30 @@ test("listening stays off unless speech input already exists", () => {
     }),
     "thinking",
   );
+});
+
+test("day bar places blocks from 07 to 22 and marks now", () => {
+  const bar = layoutDayBar({
+    nowMin: 13 * 60 + 32,
+    events: [
+      { id: "pool", title: "Whirlpool", startMin: 15 * 60 },
+      { id: "hens", title: "Hühner", startMin: 18 * 60 },
+      { id: "early", title: "Früh", startMin: 6 * 60, endMin: 6 * 60 + 30 },
+    ],
+  });
+  assert.deepEqual(bar.hours[0], 7);
+  assert.equal(bar.hours.at(-1), 22);
+  assert.equal(bar.blocks.some((block) => block.id === "early"), false);
+  const pool = bar.blocks.find((block) => block.id === "pool");
+  assert.ok(pool);
+  assert.equal(pool.left, 53.33);
+  assert.ok(bar.nowLeft !== null && bar.nowLeft > 40 && bar.nowLeft < 50);
+  assert.equal(bar.next?.id, "pool");
+  const html = renderDayBar(bar);
+  assert.match(html, /class="day-block"/);
+  assert.match(html, /class="day-now"/);
+  assert.match(html, /Whirlpool/);
+  assert.equal(renderDayBar(layoutDayBar({ nowMin: 23 * 60, events: [] })).includes("day-now"), false);
 });
 
 test("orb motion stops for reduced motion and a hidden tab", () => {
