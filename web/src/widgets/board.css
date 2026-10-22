@@ -11,6 +11,6 @@
   background: var(--bg);
   color: var(--fg);
 }
-.react-grid-item.cssTransforms { transition: transform 200ms ease-out; }
+.react-grid-item.cssTransforms { transition: transform var(--dur) var(--ease-out); }
 .react-grid-item.resizing,
 .react-grid-item.react-draggable-dragging { transition: none; z-index: 3; }

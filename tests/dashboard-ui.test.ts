@@ -13,7 +13,7 @@ import {
 } from "../src/web-logic/dashboard-layout.ts";
 import { densityVars } from "../src/web-logic/density.ts";
 import { layoutDayBar, renderDayBar } from "../src/web-logic/day-timeline.ts";
-import { orbMoves, resolveOrbState, SPEAK_FOR_MS, type OrbMessage } from "../src/web-logic/orb-state.ts";
+import { isOrbState, orbMoves, resolveOrbState, SPEAK_FOR_MS, type OrbMessage } from "../src/web-logic/orb-state.ts";
 
 const at = Date.parse("2026-10-20T11:00:00.000Z");
 
@@ -52,6 +52,37 @@ test("orb follows chat: thinking, then speaking, then idle", () => {
       now: repliedAt + SPEAK_FOR_MS + 50,
     }),
     "idle",
+  );
+});
+
+test("a failed turn or a down link shows error, until a reply or a new question", () => {
+  assert.equal(isOrbState("error"), true);
+  assert.equal(isOrbState("nope"), false);
+  assert.equal(
+    resolveOrbState({
+      messages: [message({ role: "user", status: "error", ts: "2026-10-20T11:00:01.000Z" })],
+      now: at,
+    }),
+    "error",
+  );
+  assert.equal(resolveOrbState({ messages: [], now: at, failed: true }), "error");
+  assert.equal(
+    resolveOrbState({
+      messages: [message({ role: "user", status: "error" })],
+      now: at,
+      listening: true,
+    }),
+    "listening",
+  );
+  assert.equal(
+    resolveOrbState({
+      messages: [
+        message({ role: "user", status: "error", ts: "2026-10-20T10:00:00.000Z" }),
+        message({ role: "assistant", status: "done", ts: "2026-10-20T11:00:02.000Z" }),
+      ],
+      now: at + 2500,
+    }),
+    "speaking",
   );
 });
 

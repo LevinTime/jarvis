@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { berlinParts } from "@jarvis/dates.ts";
-import { resolveOrbState } from "@jarvis/orb-state.ts";
+import { isOrbState, resolveOrbState, type OrbState } from "@jarvis/orb-state.ts";
 import type { WidgetItem } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
 import { getLocale, useI18n } from "../i18n/index.ts";
@@ -67,7 +67,13 @@ export function Dashboard({
   const [clock, setClock] = useState(() => new Date());
   const [speakTick, setSpeakTick] = useState(0);
   const link = connection === "connected" ? t("dash.live") : connection === "connecting" ? t("dash.connecting") : t("dash.offline");
-  const orb = resolveOrbState({ messages, now: Date.now() });
+  const requested = new URLSearchParams(window.location.search).get("orb");
+  const forced: OrbState | null = isOrbState(requested) ? requested : null;
+  const orb = forced ?? resolveOrbState({
+    messages,
+    now: Date.now(),
+    failed: Boolean(error) || connection === "offline",
+  });
   const parts = berlinParts(clock);
   const dateLabel = new Intl.DateTimeFormat(getLocale() === "en" ? "en-GB" : "de-DE", {
     timeZone: "Europe/Berlin",

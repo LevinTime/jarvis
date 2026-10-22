@@ -25,24 +25,29 @@ export function Orb({ state, level = null }: { state: OrbState; level?: number |
         ? t("orb.speaking")
         : state === "listening"
           ? t("orb.listening")
-          : t("orb.idle");
+          : state === "error"
+            ? t("orb.error")
+            : t("orb.idle");
 
   return (
-    <div
-      className={`orb is-${state}${hidden ? " is-paused" : ""}`}
-      data-state={state}
-      data-motion={listeningScale === null ? "css" : "level"}
-      style={listeningScale === null ? undefined : { transform: `scale(${listeningScale})` }}
-      role="img"
-      aria-label={label}
-    >
-      <span className="sr-only" aria-live="polite">
-        {label}
-      </span>
-      <span className="orb-blob a" />
-      <span className="orb-blob b" />
-      <span className="orb-blob c" />
-      <span className="orb-ring" />
+    <div className={`orb-wrap is-${state}`}>
+      <div
+        className={`orb is-${state}${hidden ? " is-paused" : ""}`}
+        data-state={state}
+        data-motion={listeningScale === null ? "css" : "level"}
+        style={listeningScale === null ? undefined : { transform: `scale(${listeningScale})` }}
+        role="img"
+        aria-label={label}
+      >
+        <span className="sr-only" aria-live={state === "error" ? "assertive" : "polite"}>
+          {label}
+        </span>
+        <span className="orb-blob a" />
+        <span className="orb-blob b" />
+        <span className="orb-blob c" />
+        <span className="orb-ring" />
+      </div>
+      <p className="orb-caption" aria-hidden="true">{label}</p>
     </div>
   );
 }

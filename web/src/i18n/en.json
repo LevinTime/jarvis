@@ -43,6 +43,7 @@
   "orb.listening": "Jarvis is listening",
   "orb.thinking": "Jarvis is thinking",
   "orb.speaking": "Jarvis is speaking",
+  "orb.error": "Jarvis has an error",
   "widget.clock": "Clock",
   "widget.status": "Status",
   "widget.tasks": "Tasks",

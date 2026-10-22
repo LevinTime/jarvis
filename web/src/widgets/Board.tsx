@@ -406,7 +406,7 @@ function WidgetBody({
   if (item.kind === "chat") {
     const last = messages.at(-1);
     return (
-      <button type="button" className="row body" onClick={() => openTask(3)}>
+      <button type="button" className="tile-hit" onClick={() => openTask(3)}>
         <span className="kicker">{t("widget.chat")}</span>
         <p>{last ? last.text.slice(0, 140) : t("widget.noChat")}</p>
       </button>
@@ -426,7 +426,7 @@ function WidgetBody({
   }
   if (item.kind === "memory") {
     return (
-      <button type="button" className="row body" onClick={() => { if (!locked) onMemory(); }}>
+      <button type="button" className="tile-hit" onClick={() => { if (!locked) onMemory(); }}>
         <span className="kicker">{t("widget.memory")}</span>
         <p>{t("widget.memoryEmpty")}</p>
       </button>
@@ -505,7 +505,7 @@ function T3Status({ onOpen }: { onOpen: () => void }) {
     };
   }, []);
   return (
-    <button type="button" className="row body" onClick={onOpen}>
+    <button type="button" className="tile-hit" onClick={onOpen}>
       <span className="kicker">{t("widget.t3")}</span>
       <h3>{up === null ? "…" : up ? t("widget.t3up") : t("widget.t3down")}</h3>
       <p className="muted">{t("widget.t3hint")}</p>
