@@ -85,8 +85,14 @@ Bei `prefers-reduced-motion` und bei `data-motion="reduce"`: keine Animation. Ü
 | speaking | Helles Violett | schnellere Deckkraft | Jarvis spricht |
 | error | Rot | still | Jarvis hat einen Fehler |
 
-Der sichtbare Name ist `aria-hidden`. Die Live-Region ist `polite`, bei Fehler `assertive`. `?orb=idle|listening|thinking|speaking|error` setzt den Zustand für Aufnahmen.
+Der sichtbare Name ist `aria-hidden`. Die Live-Region ist `polite`, bei Fehler `assertive`. `?orb=idle|listening|thinking|speaking|error` setzt den Zustand für Aufnahmen. Auf Heute ist der Orb die Bühne (`is-hero`): 148 px, ab 900 px 240 px, mit zwei stillen Ringen. Der kleine Orb bleibt 72 px.
+
+## Heute
+
+Zwei Konzeptbilder, eine Richtung. Die Fläche bleibt fast schwarz, ohne Gitter und ohne Milchglas. Die Karten sind nur ein 1-px-Rand, damit Termine und Aufgaben lesbar bleiben. Eine helle Pille markiert den heutigen Tag. Das Mikrofon ist hell, solange keine Spracheingabe existiert: es setzt den Fokus ins Feld, und mit Text wird daraus Senden.
+
+Daten sind echt. Die Woche kommt aus Berlin, ein Punkt heißt ein offener Termin an dem Tag, ein Tippen öffnet den Kalender. Heute listet Aufgaben mit Uhrzeit von heute. Aufgaben daneben sind die übrigen offenen, die Box setzt sie auf erledigt. Der Punkt daneben ist die Verbindung (`live`, `verbinde`, `offline`). Wetter und Beispielnamen gibt es nicht. Notizen, Gedächtnis und Anordnen bleiben unter dem Feld.
 
 ## Fokus und Touch
 
-`:focus-visible` bleibt 2 px im Akzent, Versatz 3 px. Klickflächen mindestens 44 px, auch die Segment-Schalter. Der Orb ist 72 px.
+`:focus-visible` bleibt 2 px im Akzent, Versatz 3 px. Klickflächen mindestens 44 px, auch die Segment-Schalter und die Wochentage.

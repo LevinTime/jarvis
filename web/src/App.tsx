@@ -480,6 +480,8 @@ export function App() {
                 setNotes((list) => list.filter((note) => note.id !== id));
               }}
               onCreate={createTask}
+              onPatch={patchTask}
+              onSend={send}
               onSettings={() => setSettingsOpen(true)}
               onMemory={() => setMemoryOpen(true)}
               mistakeStamp={mistakeStamp}

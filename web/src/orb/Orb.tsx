@@ -7,7 +7,7 @@ import { useI18n } from "../i18n/index.ts";
  * The look follows VoiceOrbs "Minimal" / "Halo" (MIT, https://github.com/amunozdev/voiceorbs).
  * No code was copied from that project.
  */
-export function Orb({ state, level = null }: { state: OrbState; level?: number | null }) {
+export function Orb({ state, level = null, hero = false }: { state: OrbState; level?: number | null; hero?: boolean }) {
   const t = useI18n();
   const [hidden, setHidden] = useState(() => document.hidden);
   useEffect(() => {
@@ -30,7 +30,7 @@ export function Orb({ state, level = null }: { state: OrbState; level?: number |
             : t("orb.idle");
 
   return (
-    <div className={`orb-wrap is-${state}`}>
+    <div className={`orb-wrap is-${state}${hero ? " is-hero" : ""}`}>
       <div
         className={`orb is-${state}${hidden ? " is-paused" : ""}`}
         data-state={state}
