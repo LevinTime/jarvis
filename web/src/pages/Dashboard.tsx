@@ -45,6 +45,7 @@ export function Dashboard({
   onResetLayout,
   onWidgets,
   onOpen,
+  onOpenDay,
   onRefresh,
   onCloseNote,
   onCreate,
@@ -68,6 +69,7 @@ export function Dashboard({
   onResetLayout: () => void;
   onWidgets: (items: WidgetItem[]) => void;
   onOpen: (page: number) => void;
+  onOpenDay: (key: string) => void;
   onRefresh: () => void;
   onCloseNote: (id: string) => void;
   onCreate: (input: { titel: string }) => Promise<void>;
@@ -188,7 +190,7 @@ export function Dashboard({
               type="button"
               aria-current={key === today ? "date" : undefined}
               aria-label={longDay(key)}
-              onClick={() => onOpen(0)}
+              onClick={() => onOpenDay(key)}
             >
               <span>{weekdayShort(key)}</span>
               <span className="week-num">{Number(key.slice(-2))}</span>

@@ -75,6 +75,20 @@ export function mondayOf(key: string): string {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
+export function civilKeyParts(key: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+  return { year, month, day };
+}
+
 export function addCivilDays(key: string, days: number): string {
   const [year, month, day] = key.split("-").map(Number);
   const date = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1));

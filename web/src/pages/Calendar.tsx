@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Drawer } from "vaul";
-import { addCivilDays, berlinParts, mondayOf, monthGrid } from "@jarvis/dates.ts";
+import { addCivilDays, berlinParts, civilKeyParts, mondayOf, monthGrid } from "@jarvis/dates.ts";
 import { swipeAxis } from "@jarvis/gesture.ts";
 import { api } from "../api.ts";
 import { clock, longDay, repeatLabel } from "../format.ts";
@@ -22,13 +22,21 @@ type Draft = {
   repeat: string;
 };
 
-export default function CalendarPage({ revision }: { revision: number }) {
+export default function CalendarPage({
+  revision,
+  focus,
+}: {
+  revision: number;
+  focus?: { key: string; stamp: number } | null;
+}) {
   const t = useI18n();
   const now = berlinParts(new Date());
-  const [cursor, setCursor] = useState({ year: now.year, month: now.month });
-  const [selected, setSelected] = useState(now.key);
-  const [span, setSpan] = useState<"month" | "week">("month");
-  const [pane, setPane] = useState<"month" | "day">("month");
+  const opened = focus ? civilKeyParts(focus.key) : null;
+  const [cursor, setCursor] = useState(opened ? { year: opened.year, month: opened.month } : { year: now.year, month: now.month });
+  const [selected, setSelected] = useState(opened ? focus?.key ?? now.key : now.key);
+  const [span, setSpan] = useState<"month" | "week">(opened ? "week" : "month");
+  const [pane, setPane] = useState<"month" | "day">(opened ? "day" : "month");
+  const focusStamp = useRef(focus?.stamp ?? 0);
   const [items, setItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +51,21 @@ export default function CalendarPage({ revision }: { revision: number }) {
   const from = span === "week" || pane === "day" ? addCivilDays(weekStart, -1) : (grid[0]?.key ?? now.key);
   const to = span === "week" || pane === "day" ? addCivilDays(weekStart, 8) : addCivilDays(grid.at(-1)?.key ?? now.key, 1);
   const dow = getLocale() === "en" ? DOW_EN : DOW_DE;
+
+  useEffect(() => {
+    if (!focus || focus.stamp === focusStamp.current) {
+      return;
+    }
+    focusStamp.current = focus.stamp;
+    const parts = civilKeyParts(focus.key);
+    if (!parts) {
+      return;
+    }
+    setSelected(focus.key);
+    setCursor({ year: parts.year, month: parts.month });
+    setSpan("week");
+    setPane("day");
+  }, [focus]);
 
   useEffect(() => {
     let gone = false;

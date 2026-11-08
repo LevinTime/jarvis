@@ -61,6 +61,7 @@ export function App() {
   const [mistakeStamp, setMistakeStamp] = useState(0);
   const [index, setIndex] = useState(1);
   const [seenCalendar, setSeenCalendar] = useState(false);
+  const [calendarFocus, setCalendarFocus] = useState<{ key: string; stamp: number } | null>(null);
   const [usageOpen, setUsageOpen] = useState(false);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -355,6 +356,11 @@ export function App() {
     embla?.scrollTo(next);
   }
 
+  function openDay(key: string) {
+    setCalendarFocus({ key, stamp: Date.now() });
+    go(0);
+  }
+
   function back() {
     if (usageOpen) {
       setUsageOpen(false);
@@ -472,7 +478,7 @@ export function App() {
           <section className="slide" role="region" aria-label={t("nav.calendar")}>
             {seenCalendar || index === 0 ? (
               <Suspense fallback={<Skeleton lines={6} />}>
-                <CalendarPage revision={revision} />
+                <CalendarPage revision={revision} focus={calendarFocus} />
               </Suspense>
             ) : (
               <Skeleton lines={4} />
@@ -494,6 +500,7 @@ export function App() {
               onResetLayout={resetDashboard}
               onWidgets={(items: WidgetItem[]) => updateSettings({ widgets: items })}
               onOpen={go}
+              onOpenDay={openDay}
               onRefresh={() => void load()}
               onCloseNote={async (id) => {
                 await api(`/api/notes/${id}`, { method: "PATCH", body: JSON.stringify({ offen: false }) });

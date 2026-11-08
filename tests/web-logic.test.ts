@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addCivilDays, berlinParts, bucketTask, greeting, mondayOf, monthGrid } from "../src/web-logic/dates.ts";
+import { addCivilDays, berlinParts, bucketTask, civilKeyParts, greeting, mondayOf, monthGrid } from "../src/web-logic/dates.ts";
 import { allowPageDrag, dragAxis, swipeAxis, todoSwipeAction } from "../src/web-logic/gesture.ts";
 import { createLiveState, reconnectDelayMs } from "../src/web-logic/live.ts";
 import { parseMarkdown } from "../src/web-logic/markdown.ts";
@@ -14,6 +14,8 @@ test("month grid starts on Monday and the Berlin week of 17 Oct 2026 does too", 
   assert.equal(grid[3]?.inMonth, true);
   assert.equal(grid.length % 7, 0);
   assert.equal(mondayOf("2026-10-17"), "2026-10-12");
+  assert.deepEqual(civilKeyParts("2026-10-17"), { year: 2026, month: 10, day: 17 });
+  assert.equal(civilKeyParts("2026-13-01"), null);
   assert.equal(addCivilDays("2026-10-12", 6), "2026-10-18");
 });
 
