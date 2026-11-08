@@ -182,6 +182,8 @@ test("the shell keeps the iphone constraints and a centered desktop column", () 
   assert.match(css, /font-size:\s*max\(16px,\s*1rem\)/);
   assert.match(css, /touch-action:\s*manipulation/);
   assert.match(css, /safe-area-inset-bottom/);
+  assert.match(css, /\.chip\s*\{[^}]*min-height:\s*44px/);
+  assert.match(css, /\.toggle input\s*\{[^}]*width:\s*44px;\s*height:\s*44px/);
   assert.match(css, /1280px/);
 });
 
