@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { addCivilDays, berlinParts, mondayOf } from "@jarvis/dates.ts";
 import { isOrbState, resolveOrbState, type OrbState } from "@jarvis/orb-state.ts";
-import { Mic } from "lucide-react";
+import { Mic, Send } from "lucide-react";
 import type { WidgetItem } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
+import { useDictation } from "../dictation.ts";
 import { clock, longDay } from "../format.ts";
 import { getLocale, useI18n } from "../i18n/index.ts";
 import { Orb } from "../orb/Orb.tsx";
@@ -80,6 +81,7 @@ export function Dashboard({
   mistakeStamp: number;
 }) {
   const t = useI18n();
+  const dictation = useDictation(getLocale());
   const askRef = useRef<HTMLTextAreaElement>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [mistakes, setMistakes] = useState(0);
@@ -95,6 +97,7 @@ export function Dashboard({
     messages,
     now: Date.now(),
     failed: Boolean(error) || connection === "offline",
+    listening: dictation.listening,
   });
   const parts = berlinParts(clockNow);
   const today = parts.key;
@@ -171,6 +174,8 @@ export function Dashboard({
     }
     await onSend(value);
   }
+
+  const showMic = dictation.supported && (dictation.listening || !draft.trim());
 
   return (
     <div className="stack stage">
@@ -342,8 +347,37 @@ export function Dashboard({
                 void ask(event);
               }}
             />
-            <button type="submit" className="mic" aria-label={draft.trim() ? t("chat.send") : t("home.write")}>
-              <Mic size={18} strokeWidth={1.75} aria-hidden="true" />
+            <button
+              type={showMic ? "button" : "submit"}
+              className="mic"
+              aria-label={showMic ? (dictation.listening ? t("home.listening") : t("home.listen")) : t("chat.send")}
+              aria-pressed={dictation.listening ? true : undefined}
+              onClick={(event) => {
+                if (dictation.listening) {
+                  event.preventDefault();
+                  dictation.stop();
+                  return;
+                }
+                if (draft.trim() || !dictation.supported) {
+                  return;
+                }
+                event.preventDefault();
+                const started = dictation.start((text) => {
+                  setDraft(text);
+                  const field = askRef.current;
+                  if (!field) {
+                    return;
+                  }
+                  field.style.height = "auto";
+                  field.style.height = `${Math.min(field.scrollHeight, 136)}px`;
+                });
+                if (!started) {
+                  setActionError(t("home.speechFail"));
+                  askRef.current?.focus();
+                }
+              }}
+            >
+              {showMic ? <Mic size={18} strokeWidth={1.75} aria-hidden="true" /> : <Send size={18} strokeWidth={1.75} aria-hidden="true" />}
             </button>
           </form>
       )}

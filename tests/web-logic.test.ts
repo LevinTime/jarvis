@@ -4,6 +4,7 @@ import { addCivilDays, berlinParts, bucketTask, civilKeyParts, greeting, mondayO
 import { allowPageDrag, dragAxis, swipeAxis, todoSwipeAction } from "../src/web-logic/gesture.ts";
 import { createLiveState, reconnectDelayMs } from "../src/web-logic/live.ts";
 import { parseMarkdown } from "../src/web-logic/markdown.ts";
+import { findSpeechRecognition, speechFailure, transcriptFrom } from "../src/web-logic/speech.ts";
 import { parseSseBlock } from "../src/web-logic/sse.ts";
 
 test("month grid starts on Monday and the Berlin week of 17 Oct 2026 does too", () => {
@@ -43,6 +44,22 @@ test("swipes need a clear axis and ignore blocked targets", () => {
   assert.equal(todoSwipeAction(100), "done");
   assert.equal(todoSwipeAction(-100), "delete");
   assert.equal(todoSwipeAction(20), "none");
+});
+
+test("speech input needs a constructor and ignores a quiet stop", () => {
+  assert.equal(findSpeechRecognition({}), null);
+  assert.equal(typeof findSpeechRecognition({ webkitSpeechRecognition() {} }), "function");
+  const heard = transcriptFrom({
+    results: [
+      { isFinal: false, 0: { transcript: "hallo" } },
+      { isFinal: true, 0: { transcript: " welt" } },
+    ],
+  });
+  assert.equal(heard.text, "hallo welt");
+  assert.equal(heard.final, true);
+  assert.equal(speechFailure("not-allowed"), true);
+  assert.equal(speechFailure("no-speech"), false);
+  assert.equal(speechFailure(undefined), false);
 });
 
 test("page drags stay off the calendar except at the screen edge", () => {
