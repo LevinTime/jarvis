@@ -512,6 +512,7 @@ export function App() {
               onSettings={() => setSettingsOpen(true)}
               onMemory={() => setMemoryOpen(true)}
               mistakeStamp={mistakeStamp}
+              name={settings.name}
             />
           </section>
           <section className="slide" role="region" aria-label={t("nav.tasks")}>

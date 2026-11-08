@@ -176,6 +176,8 @@
   "purpose.translate": "Übersetzung",
   "purpose.summary": "Zusammenfassung",
   "settings.title": "Einstellungen",
+  "settings.name": "Name",
+  "settings.nameHint": "So begrüßt dich Jarvis. Leer heißt Levin.",
   "settings.language": "Sprache",
   "settings.langDe": "Deutsch",
   "settings.langEn": "Englisch",

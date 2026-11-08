@@ -176,6 +176,8 @@
   "purpose.translate": "Translation",
   "purpose.summary": "Summary",
   "settings.title": "Settings",
+  "settings.name": "Name",
+  "settings.nameHint": "How Jarvis greets you. Empty means Levin.",
   "settings.language": "Language",
   "settings.langDe": "German",
   "settings.langEn": "English",

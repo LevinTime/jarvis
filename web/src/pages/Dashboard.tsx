@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { addCivilDays, berlinParts, mondayOf } from "@jarvis/dates.ts";
 import { isOrbState, resolveOrbState, type OrbState } from "@jarvis/orb-state.ts";
 import { Mic, Send } from "lucide-react";
-import type { WidgetItem } from "../../../src/settings/model.ts";
+import { nameInitial, visibleName, type WidgetItem } from "../../../src/settings/model.ts";
 import { api } from "../api.ts";
 import { useDictation } from "../dictation.ts";
 import { clock, longDay } from "../format.ts";
@@ -55,6 +55,7 @@ export function Dashboard({
   onSettings,
   onMemory,
   mistakeStamp,
+  name,
 }: {
   status: StatusResponse | null;
   tasks: Task[];
@@ -79,6 +80,7 @@ export function Dashboard({
   onSettings: () => void;
   onMemory: () => void;
   mistakeStamp: number;
+  name: string;
 }) {
   const t = useI18n();
   const dictation = useDictation(getLocale());
@@ -181,11 +183,11 @@ export function Dashboard({
     <div className="stack stage">
       <header className="stage-top">
         <div className="dash-greet">
-          <h1>{greeting(clockNow, t)}, Levin</h1>
+          <h1>{greeting(clockNow, t)}, {visibleName(name)}</h1>
           <p className="dash-date">{dateLabel}</p>
         </div>
         <button type="button" className="monogram" onClick={onSettings} aria-label={t("dash.settings")}>
-          L
+          {nameInitial(name)}
         </button>
       </header>
       <ul className="week" aria-label={t("home.week")}>

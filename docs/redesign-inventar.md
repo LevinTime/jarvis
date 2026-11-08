@@ -152,7 +152,7 @@ Nachher-Bilder in `docs/screenshots/nachher/`: 1920×1080 und 428×926, jeweils 
 
 ### Neu
 
-- Kopfzeile „Guten Tag, Levin“ mit Datum, ohne eigene Box. Orb in der Mitte, Zustände idle, listening, thinking, speaking.
+- Kopfzeile mit Tagesgruß und Namen aus den Einstellungen (Vorgabe Levin), mit Datum, ohne eigene Box. Orb in der Mitte, Zustände idle, listening, thinking, speaking.
 - Kompakte Status-Chips und die Zeile „n heute · n offen · n Termine“. Darunter bis zu drei Aufgaben, der Rest als „+N“.
 - Tagesleiste 07–22 nur auf Heute. Der große Kalender bleibt auf der Seite Kalender.
 - Raster mit react-grid-layout 2.2.2. Größen S, M, L. Ziehen nur am Griff, nur im Anordnen-Modus. Layout je Breakpoint in `localStorage`, Version 1, Fallback auf das Standardraster.

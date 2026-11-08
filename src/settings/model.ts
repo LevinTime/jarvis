@@ -20,6 +20,7 @@ export type WidgetItem = {
 
 export type AppSettings = {
   version: 1;
+  name: string;
   locale: LocaleId;
   assistantLanguage: LocaleId;
   theme: ThemeId;
@@ -35,6 +36,8 @@ export type AppSettings = {
 };
 
 export const DEFAULT_T3_URL = "https://levin.tail34013b.ts.net:8443";
+export const DEFAULT_NAME = "Levin";
+const NAME_MAX = 40;
 
 export const DEFAULT_WIDGETS: WidgetItem[] = [
   { id: "status", kind: "status", size: "m" },
@@ -49,6 +52,7 @@ export const DEFAULT_WIDGETS: WidgetItem[] = [
 
 export const DEFAULT_SETTINGS: AppSettings = {
   version: 1,
+  name: DEFAULT_NAME,
   locale: "de",
   assistantLanguage: "de",
   theme: "midnight",
@@ -105,6 +109,29 @@ function clampNumber(value: unknown, label: string, fallback: number, min: numbe
     throw new SettingsValidationError(`${label} ist ungültig`);
   }
   return Math.round(Math.min(max, Math.max(min, value)) * 100) / 100;
+}
+
+function personName(value: unknown, fallback: string): string {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (typeof value !== "string") {
+    throw new SettingsValidationError("Name ist ungültig");
+  }
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (trimmed.length > NAME_MAX) {
+    throw new SettingsValidationError("Name ist zu lang");
+  }
+  return trimmed;
+}
+
+export function visibleName(name: string): string {
+  return name.trim() || DEFAULT_NAME;
+}
+
+export function nameInitial(name: string): string {
+  const first = Array.from(visibleName(name))[0] ?? "L";
+  return first.toLocaleUpperCase("de-DE");
 }
 
 function accent(value: unknown): string | null {
@@ -187,6 +214,7 @@ export function normalizeSettings(input: unknown, base: AppSettings = DEFAULT_SE
   }
   return {
     version: 1,
+    name: personName(record.name, base.name),
     locale: oneOf(record.locale, LOCALE_IDS, "Sprache", base.locale),
     assistantLanguage: oneOf(record.assistantLanguage, LOCALE_IDS, "Antwortsprache", base.assistantLanguage),
     theme: oneOf(record.theme, THEME_IDS, "Thema", base.theme),

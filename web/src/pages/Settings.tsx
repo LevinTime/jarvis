@@ -40,6 +40,17 @@ export function Settings({
         </button>
       </header>
       <section className="settings-card">
+        <label className="field">
+          <span>{t("settings.name")}</span>
+          <input
+            type="text"
+            value={settings.name}
+            maxLength={40}
+            autoComplete="nickname"
+            onChange={(event) => onChange({ name: event.target.value })}
+          />
+          <p className="hint">{t("settings.nameHint")}</p>
+        </label>
         <span className="kicker">{t("settings.language")}</span>
         <div className="choice" role="group" aria-label={t("settings.language")}>
           {(["de", "en"] as LocaleId[]).map((locale) => (
