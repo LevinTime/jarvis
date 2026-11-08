@@ -507,14 +507,16 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
   position: fixed; left: 0; right: 0; bottom: 0; width: min(560px, 100%); margin: 0 auto;
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
   border-bottom-left-radius: 0; border-bottom-right-radius: 0;
-  max-height: 88dvh; overflow: auto; z-index: 41;
+  max-height: calc(var(--vvh, 100dvh) - 24px); overflow: auto; z-index: 41;
 }
+.sheet-portaled { bottom: var(--keyboard, 0px); }
 .sheet-bar, .vaul-handle { width: 42px; height: 5px; border-radius: 99px; background: var(--highlight); margin: 6px auto 12px; }
 .empty { padding: 28px 18px; text-align: center; display: grid; justify-items: center; gap: 8px; }
 .empty h2 { margin: 0; font-size: var(--text-lg); }
 .offline {
-  min-height: 100dvh; display: grid; align-content: center; justify-items: center;
-  text-align: center; padding: 32px 24px; gap: 10px;
+  min-height: var(--vvh, 100dvh); display: grid; align-content: center; justify-items: center;
+  text-align: center; gap: 10px;
+  padding: calc(32px + env(safe-area-inset-top)) 24px calc(32px + env(safe-area-inset-bottom));
 }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
@@ -548,12 +550,13 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
 @media (display-mode: standalone) {
   html, body, #root, .app {
     background-color: var(--bg);
-    min-height: 100dvh;
+    min-height: var(--vvh, 100dvh);
   }
   .app {
-    height: 100dvh;
+    height: var(--vvh, 100dvh);
   }
 }
+html[data-keyboard="open"] .dock-wrap { display: none; }
 
 .stage { align-content: start; }
 .stage-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }

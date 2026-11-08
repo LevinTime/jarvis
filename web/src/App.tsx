@@ -134,14 +134,34 @@ export function App() {
     if (!viewport) {
       return;
     }
+    let frame = 0;
     const sync = () => {
-      document.documentElement.style.setProperty("--vvh", `${viewport.height}px`);
-      document.documentElement.style.setProperty("--vv-top", `${viewport.offsetTop}px`);
+      if (frame) {
+        return;
+      }
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const height = viewport.height;
+        const top = viewport.offsetTop;
+        const keyboard = Math.max(0, window.innerHeight - height - top);
+        const root = document.documentElement;
+        root.style.setProperty("--vvh", `${height}px`);
+        root.style.setProperty("--vv-top", `${top}px`);
+        root.style.setProperty("--keyboard", `${keyboard}px`);
+        root.dataset.keyboard = keyboard > 80 ? "open" : "closed";
+      });
     };
     sync();
     viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    window.addEventListener("resize", sync);
     return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
       viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      window.removeEventListener("resize", sync);
     };
   }, []);
 

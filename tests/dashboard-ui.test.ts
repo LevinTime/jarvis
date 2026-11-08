@@ -176,6 +176,8 @@ test("the shell keeps the iphone constraints and a centered desktop column", () 
   assert.equal(html.includes("user-scalable"), false);
   assert.match(css, /100dvh/);
   assert.match(css, /display-mode:\s*standalone/);
+  assert.match(css, /display-mode:\s*standalone[\s\S]*height:\s*var\(--vvh,\s*100dvh\)/);
+  assert.match(html, /interactive-widget=resizes-content/);
   assert.match(css, /overscroll-behavior:\s*none/);
   assert.match(css, /font-size:\s*max\(16px,\s*1rem\)/);
   assert.match(css, /touch-action:\s*manipulation/);

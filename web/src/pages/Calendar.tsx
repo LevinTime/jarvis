@@ -302,7 +302,7 @@ export default function CalendarPage({ revision }: { revision: number }) {
       <Drawer.Root open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }} noBodyStyles>
         <Drawer.Portal>
           <Drawer.Overlay className="sheet-root" />
-          <Drawer.Content className="sheet surface" aria-label={draft?.taskId ? t("cal.sheetEdit") : t("cal.sheetNew")}>
+          <Drawer.Content className="sheet surface sheet-portaled" aria-label={draft?.taskId ? t("cal.sheetEdit") : t("cal.sheetNew")}>
             <Drawer.Handle className="vaul-handle" />
             <h2>{draft?.taskId ? t("cal.sheetEdit") : t("cal.sheetNew")}</h2>
             {draft ? (
