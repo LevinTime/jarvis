@@ -246,9 +246,9 @@ export function Dashboard({
               <Orb state={orb} hero />
               {orb === "idle" ? <p className="stage-invite">{t("home.help")}</p> : null}
             </div>
-            <section className="stage-card stage-events" aria-labelledby="home-events">
+            <section className="stage-card stage-events">
               <header>
-                <h2 id="home-events">{t("tasks.today")}</h2>
+                <h2>{t("tasks.today")}</h2>
                 <span className="muted">
                   {appointments.length === 1
                     ? t("home.appointment", { count: appointments.length })
@@ -273,9 +273,9 @@ export function Dashboard({
                 </button>
               ) : null}
             </section>
-            <section className="stage-card stage-tasks" aria-labelledby="home-tasks">
+            <section className="stage-card stage-tasks">
               <header>
-                <h2 id="home-tasks">{t("nav.tasks")}</h2>
+                <h2>{t("nav.tasks")}</h2>
                 <span className="stage-status">
                   <span className={`dot ${connection === "connected" ? "ok" : connection === "connecting" ? "warn" : "bad"}`} />
                   {link}
