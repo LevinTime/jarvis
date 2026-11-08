@@ -503,6 +503,7 @@ p, h1, h2, h3, a, button, .card, .row, .bubble, .banner, .widget { overflow-wrap
   display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; z-index: 30;
 }
 .sheet-root { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.46); z-index: 40; }
+.sheet, .settings-screen, .memory-screen { overscroll-behavior: contain; }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; width: min(560px, 100%); margin: 0 auto;
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
@@ -570,11 +571,12 @@ html[data-keyboard="open"] .dock-wrap { display: none; }
   font-weight: 650;
 }
 .week {
-  list-style: none; display: flex; justify-content: center; flex-wrap: wrap; gap: var(--space-1);
+  list-style: none; display: flex; justify-content: center; flex-wrap: nowrap; gap: 2px;
   margin: 0; padding: 0;
 }
+.week li { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; }
 .week button {
-  min-width: 44px; min-height: 56px; border: 0; border-radius: 999px;
+  width: 100%; max-width: 52px; min-width: 44px; min-height: 56px; border: 0; border-radius: 999px;
   background: transparent; color: var(--muted);
   display: grid; justify-items: center; align-content: center; gap: 2px;
   padding: 6px 4px; font-size: var(--type-label);

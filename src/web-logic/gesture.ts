@@ -45,7 +45,13 @@ export function todoSwipeAction(dx: number): TodoSwipe {
   return "none";
 }
 
-const PAGE_EDGE_PX = 28;
+export const PAGE_EDGE_PX = 28;
+
+/** The screen edge belongs to the page swipe, not to a list or the calendar. */
+export function startsOnPageEdge(clientX: number, viewportWidth: number): boolean {
+  const width = viewportWidth > 0 ? viewportWidth : 0;
+  return clientX <= PAGE_EDGE_PX || (width > 0 && clientX >= width - PAGE_EDGE_PX);
+}
 
 /**
  * Page swipe loses to inputs, mail-style rows, and the calendar surface.
@@ -55,10 +61,8 @@ export function allowPageDrag(target: Element, clientX: number, viewportWidth: n
   if (target.closest("input, textarea, select, [data-no-swipe]")) {
     return false;
   }
-  const calendar = target.closest("[data-gesture='calendar']");
-  if (!calendar) {
+  if (!target.closest("[data-gesture='calendar']")) {
     return true;
   }
-  const width = viewportWidth > 0 ? viewportWidth : 0;
-  return clientX <= PAGE_EDGE_PX || clientX >= width - PAGE_EDGE_PX;
+  return startsOnPageEdge(clientX, viewportWidth);
 }

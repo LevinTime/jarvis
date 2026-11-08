@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Drawer } from "vaul";
 import { addCivilDays, berlinParts, civilKeyParts, mondayOf, monthGrid } from "@jarvis/dates.ts";
-import { swipeAxis } from "@jarvis/gesture.ts";
+import { PAGE_EDGE_PX, startsOnPageEdge, swipeAxis } from "@jarvis/gesture.ts";
 import { api } from "../api.ts";
 import { clock, longDay, repeatLabel } from "../format.ts";
 import { getLocale, useI18n } from "../i18n/index.ts";
@@ -205,9 +205,11 @@ export default function CalendarPage({
         }
         const dx = event.clientX - start.x;
         const dy = event.clientY - start.y;
-        if (pane === "day" && swipeAxis(dx, dy) === "x" && dx > 0 && start.x <= 28) {
-          setPane("month");
-          setSpan("month");
+        if (startsOnPageEdge(start.x, window.innerWidth)) {
+          if (pane === "day" && swipeAxis(dx, dy) === "x" && dx > 0 && start.x <= PAGE_EDGE_PX) {
+            setPane("month");
+            setSpan("month");
+          }
           return;
         }
         if (swipeAxis(dx, dy) !== "x") {

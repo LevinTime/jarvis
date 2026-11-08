@@ -222,7 +222,7 @@ function TodoRow({
   const start = useRef<{ x: number; y: number; pointer: number } | null>(null);
   const dragged = useRef(false);
   return (
-    <div className="swipe" data-no-swipe>
+    <div className="swipe" data-no-swipe onPointerDown={(event) => event.stopPropagation()}>
       <div className="swipe-action done">{t("tasks.swipeDone")}</div>
       <div className="swipe-action delete">{t("tasks.swipeDelete")}</div>
       <div
