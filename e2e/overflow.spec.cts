@@ -87,6 +87,7 @@ for (const viewport of viewports) {
     await page.getByRole("button", { name: "Einstellungen" }).click();
     const dialog = page.getByRole("dialog", { name: "Einstellungen" });
     await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveCSS("opacity", "1");
     await expect(dialog.getByLabel("T3-Adresse")).toHaveValue("http://127.0.0.1:9");
     await assertInside(page);
     await page.screenshot({
@@ -95,6 +96,7 @@ for (const viewport of viewports) {
     await dialog.getByRole("button", { name: "Gedächtnis" }).click();
     const memory = page.getByRole("dialog", { name: "Gedächtnis" });
     await expect(memory).toBeVisible();
+    await expect(memory).toHaveCSS("opacity", "1");
     await expect(memory.getByRole("heading", { name: "Gedächtnis" })).toBeVisible();
     await expect(memory.getByText("Noch leer")).toBeVisible();
     await assertInside(page);
