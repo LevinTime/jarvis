@@ -64,7 +64,7 @@ test("settings defaults clamp scales and reject bad T3 addresses", () => {
   assert.equal(readDefaultT3Url("ftp://nope"), DEFAULT_T3_URL);
   assert.equal(readDefaultT3Url("http://user:secret@127.0.0.1:3773"), DEFAULT_T3_URL);
   const next = normalizeSettings({ textScale: 9, radius: 0.1, theme: "ocean" });
-  assert.equal(next.textScale, 1.3);
+  assert.equal("textScale" in next, false);
   assert.equal(next.radius, 0.7);
   assert.equal(next.theme, "ocean");
   assert.equal(next.locale, "de");

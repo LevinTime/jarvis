@@ -24,7 +24,6 @@ export type AppSettings = {
   assistantLanguage: LocaleId;
   theme: ThemeId;
   accent: string | null;
-  textScale: number;
   density: DensityId;
   radius: number;
   reduceMotion: boolean;
@@ -54,7 +53,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   assistantLanguage: "de",
   theme: "midnight",
   accent: null,
-  textScale: 1,
   density: "normal",
   radius: 1,
   reduceMotion: false,
@@ -193,7 +191,6 @@ export function normalizeSettings(input: unknown, base: AppSettings = DEFAULT_SE
     assistantLanguage: oneOf(record.assistantLanguage, LOCALE_IDS, "Antwortsprache", base.assistantLanguage),
     theme: oneOf(record.theme, THEME_IDS, "Thema", base.theme),
     accent: record.accent === undefined ? base.accent : accent(record.accent),
-    textScale: clampNumber(record.textScale, "Textgröße", base.textScale, 0.85, 1.3),
     density: oneOf(record.density, DENSITY_IDS, "Dichte", base.density),
     radius: clampNumber(record.radius, "Rundung", base.radius, 0.7, 1.4),
     reduceMotion: bool(record.reduceMotion, "Bewegung", base.reduceMotion),

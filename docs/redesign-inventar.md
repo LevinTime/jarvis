@@ -148,7 +148,7 @@ Nachher-Bilder in `docs/screenshots/nachher/`: 1920×1080 und 428×926, jeweils 
 
 - Kosten-Kachel und der Hinweis „nach unten für die Kosten“ auf Heute. Die Zahlen liegen unter Einstellungen, „Verbrauch ansehen“.
 - Langer Druck zum Anordnen. Stattdessen der Schalter „Anordnen“.
-- Der Textgrößen-Regler wirkt nicht mehr. Der Wert `textScale` bleibt im Modell, damit die API unverändert bleibt.
+- Der Textgrößen-Regler ist weg. Alte `textScale`-Werte werden beim Laden verworfen. Die Schrift folgt der Dichte.
 
 ### Neu
 
