@@ -529,7 +529,7 @@ export function createWebApp(options: WebAppOptions): Hono {
 
   app.get("/api/t3", async (c) => {
     const current = await settingsBody();
-    const probe = await probeT3(current.effectiveT3Url);
+    const probe = await probeT3(current.effectiveT3Url, 1200, current.defaultT3Url);
     return c.json({ url: current.effectiveT3Url, reachable: probe.reachable, status: probe.status });
   });
 

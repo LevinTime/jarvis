@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseJson, readText, writeTextAtomic } from "../atomic-file.ts";
+import { createMutex } from "../mutex.ts";
 import { nextOccurrence, type Wiederholung } from "./schedule.ts";
 
 export type TaskStatus = "offen" | "in Arbeit" | "erledigt" | "fehlgeschlagen";
@@ -148,6 +149,7 @@ export function createTaskService(options: TaskServiceOptions) {
   const processor =
     options.processor ??
     (async (task: Task) => `Erledigt: ${task.titel}`);
+  const mutex = createMutex();
   const nowIso = () => (options.now ?? (() => new Date()))().toISOString();
   const timeZone = options.timeZone ?? "Europe/Berlin";
 
@@ -490,7 +492,17 @@ export function createTaskService(options: TaskServiceOptions) {
       .filter((entry) => (taskId ? entry.taskId === taskId : true));
   }
 
-  return { create, get, list, run, log, recoverStale, reset, update, remove };
+  return {
+    create: (input: TaskInput) => mutex.exclusive(() => create(input)),
+    get: (id: string) => mutex.exclusive(() => get(id)),
+    list: () => mutex.exclusive(() => list()),
+    run: (id: string) => mutex.exclusive(() => run(id)),
+    log: (taskId?: string) => mutex.exclusive(() => log(taskId)),
+    recoverStale: (maxAgeMinuten?: number) => mutex.exclusive(() => recoverStale(maxAgeMinuten)),
+    reset: (id: string) => mutex.exclusive(() => reset(id)),
+    update: (id: string, patch: TaskPatch) => mutex.exclusive(() => update(id, patch)),
+    remove: (id: string) => mutex.exclusive(() => remove(id)),
+  };
 }
 
 export type TaskService = ReturnType<typeof createTaskService>;

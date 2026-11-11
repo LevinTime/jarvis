@@ -91,3 +91,18 @@ test("close marks a note done and a missing id throws", async () => {
     await cleanup();
   }
 });
+
+test("parallel adds keep every note", async () => {
+  const { service, cleanup } = await withNotes();
+  try {
+    const count = 24;
+    await Promise.all(
+      Array.from({ length: count }, (_, index) => service.add({ text: `Notiz ${index}` })),
+    );
+    const notes = await service.list();
+    assert.equal(notes.length, count);
+    assert.equal(new Set(notes.map((note) => note.text)).size, count);
+  } finally {
+    await cleanup();
+  }
+});

@@ -129,6 +129,12 @@ test("tailscale header and origin rules allow localhost and reject a stranger", 
       headers: { "tailscale-user-login": "other" },
     });
     assert.equal(wrong.status, 403);
+    const stranger = await fetch(`${api.base}/api/status`, {
+      headers: { "Tailscale-User-Login": "stranger@example.com" },
+    });
+    assert.equal(stranger.status, 403);
+    const strangerBody = (await stranger.json()) as { error: { code: string } };
+    assert.equal(strangerBody.error.code, "forbidden");
     const right = await fetch(`${api.base}/api/status`, {
       headers: { "tailscale-user-login": "levin" },
     });

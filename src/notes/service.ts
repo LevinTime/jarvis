@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { parseJson, readText, writeTextAtomic } from "../atomic-file.ts";
+import { createMutex } from "../mutex.ts";
 
 export type Note = {
   id: string;
@@ -62,6 +63,7 @@ function optionalErinnernAm(value: string | undefined): string | undefined {
 
 export function createNoteService(options: NoteServiceOptions) {
   const notesFile = path.join(options.dataDir, "notes.json");
+  const mutex = createMutex();
   const nowIso = () => (options.now ?? (() => new Date()))().toISOString();
 
   async function load(): Promise<Note[]> {
@@ -145,7 +147,13 @@ export function createNoteService(options: NoteServiceOptions) {
     return closed;
   }
 
-  return { add, list, listOpen, get, close };
+  return {
+    add: (input: NoteInput) => mutex.exclusive(() => add(input)),
+    list: () => mutex.exclusive(() => list()),
+    listOpen: () => mutex.exclusive(() => listOpen()),
+    get: (id: string) => mutex.exclusive(() => get(id)),
+    close: (id: string) => mutex.exclusive(() => close(id)),
+  };
 }
 
 export type NoteService = ReturnType<typeof createNoteService>;

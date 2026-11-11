@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -7,6 +9,7 @@ import { createEventBus } from "../src/events.ts";
 import { createMessageStore } from "../src/messages/store.ts";
 import { createNoteService } from "../src/notes/service.ts";
 import { DEFAULT_SETTINGS, DEFAULT_T3_URL, nameInitial, normalizeSettings, readDefaultT3Url, visibleName } from "../src/settings/model.ts";
+import { probeT3, t3ProbeAllowed } from "../src/settings/probe.ts";
 import { createSettingsStore, settingsPath } from "../src/settings/store.ts";
 import { createTaskService } from "../src/tasks/service.ts";
 import { createWebApp, startWebServer, WEB_HOST } from "../src/web/server.ts";
@@ -58,7 +61,7 @@ async function withSettings(options: { store?: boolean; t3Url?: string } = {}) {
 }
 
 test("settings defaults clamp scales and reject bad T3 addresses", () => {
-  assert.equal(DEFAULT_T3_URL, "https://levin.tail34013b.ts.net:8443");
+  assert.equal(DEFAULT_T3_URL, "https://machine.tailnet.ts.net:8443");
   assert.equal(readDefaultT3Url(undefined), DEFAULT_T3_URL);
   assert.equal(readDefaultT3Url("http://127.0.0.1:4555"), "http://127.0.0.1:4555");
   assert.equal(readDefaultT3Url("ftp://nope"), DEFAULT_T3_URL);
@@ -162,5 +165,76 @@ test("settings without a store stay read-only and an unreachable T3 stays down",
     assert.equal(t3.url, "http://127.0.0.1:1");
   } finally {
     await readonly.close();
+  }
+});
+
+test("parallel settings saves keep both fields", async () => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), "jarvis-settings-race-"));
+  try {
+    const store = createSettingsStore({ file: settingsPath(dataDir) });
+    await Promise.all([store.save({ theme: "ocean" }), store.save({ locale: "en" })]);
+    const saved = await store.get();
+    assert.equal(saved.theme, "ocean");
+    assert.equal(saved.locale, "en");
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("t3 probe skips a host outside the configured base", async () => {
+  assert.equal(
+    t3ProbeAllowed("https://other.example.ts.net:8443", "https://machine.tailnet.ts.net:8443"),
+    false,
+  );
+  assert.equal(
+    t3ProbeAllowed("https://machine.tailnet.ts.net", "https://machine.tailnet.ts.net:8443"),
+    true,
+  );
+  let hits = 0;
+  const server = createServer((_req, res) => {
+    hits += 1;
+    res.writeHead(200);
+    res.end("ok");
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const port = (server.address() as AddressInfo).port;
+  try {
+    const blocked = await probeT3(
+      `http://127.0.0.1:${port}/`,
+      1200,
+      "https://machine.tailnet.ts.net:8443",
+    );
+    assert.equal(blocked.reachable, false);
+    assert.equal(blocked.status, 0);
+    assert.equal(hits, 0);
+
+    const allowed = await probeT3(`http://127.0.0.1:${port}/`, 1200, `http://127.0.0.1:${port}`);
+    assert.equal(allowed.reachable, true);
+    assert.equal(allowed.status, 200);
+    assert.equal(hits, 1);
+
+    const api = await withSettings({ store: true, t3Url: "https://machine.tailnet.ts.net:8443" });
+    try {
+      const saved = await fetch(`${api.base}/api/settings`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ settings: { t3Url: `http://127.0.0.1:${port}` } }),
+      });
+      assert.equal(saved.status, 200);
+      const probe = await fetch(`${api.base}/api/t3`);
+      assert.equal(probe.status, 200);
+      const body = (await probe.json()) as { reachable: boolean; status: number };
+      assert.equal(body.reachable, false);
+      assert.equal(body.status, 0);
+      assert.equal(hits, 1);
+    } finally {
+      await api.close();
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
   }
 });

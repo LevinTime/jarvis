@@ -1,4 +1,30 @@
-export async function probeT3(pageUrl: string, timeoutMs = 1200): Promise<{ reachable: boolean; status: number }> {
+export function t3BaseHost(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    const host = url.hostname.replace(/\.$/, "").toLowerCase();
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+
+export function t3ProbeAllowed(pageUrl: string, baseUrl: string): boolean {
+  const page = t3BaseHost(pageUrl);
+  const base = t3BaseHost(baseUrl);
+  return page !== null && page === base;
+}
+
+export async function probeT3(
+  pageUrl: string,
+  timeoutMs = 1200,
+  allowedBase?: string,
+): Promise<{ reachable: boolean; status: number }> {
+  if (allowedBase !== undefined && !t3ProbeAllowed(pageUrl, allowedBase)) {
+    return { reachable: false, status: 0 };
+  }
   let target: string;
   try {
     const url = new URL(pageUrl);

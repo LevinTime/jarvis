@@ -35,7 +35,7 @@ export type AppSettings = {
   widgets: WidgetItem[];
 };
 
-export const DEFAULT_T3_URL = "https://levin.tail34013b.ts.net:8443";
+export const DEFAULT_T3_URL = "https://machine.tailnet.ts.net:8443";
 export const DEFAULT_NAME = "Levin";
 const NAME_MAX = 40;
 

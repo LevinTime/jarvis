@@ -458,3 +458,20 @@ test("tasks persist for a new service on the same data dir", async () => {
     await cleanup();
   }
 });
+
+test("parallel creates keep every task", async () => {
+  const { service, cleanup } = await withService();
+  try {
+    const count = 24;
+    await Promise.all(
+      Array.from({ length: count }, (_, index) =>
+        service.create({ titel: `Aufgabe ${index}`, aufgabe: `tun ${index}` }),
+      ),
+    );
+    const tasks = await service.list();
+    assert.equal(tasks.length, count);
+    assert.equal(new Set(tasks.map((task) => task.titel)).size, count);
+  } finally {
+    await cleanup();
+  }
+});

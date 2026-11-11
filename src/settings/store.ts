@@ -1,6 +1,7 @@
 import path from "node:path";
 import { parseJson, readText, writeTextAtomic } from "../atomic-file.ts";
 import { logInfo } from "../log.ts";
+import { createMutex } from "../mutex.ts";
 import {
   DEFAULT_SETTINGS,
   type AppSettings,
@@ -17,17 +18,8 @@ export type SettingsStore = {
 
 export function createSettingsStore(options: { file: string; defaultT3Url?: string }): SettingsStore {
   const fallbackUrl = readDefaultT3Url(options.defaultT3Url);
-  let chain = Promise.resolve();
+  const mutex = createMutex();
   let cache: AppSettings | null = null;
-
-  function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-    const run = chain.then(fn, fn);
-    chain = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
-  }
 
   async function read(): Promise<AppSettings> {
     if (cache) {
@@ -51,14 +43,14 @@ export function createSettingsStore(options: { file: string; defaultT3Url?: stri
 
   return {
     defaultT3Url: () => fallbackUrl,
-    get: () => enqueue(read),
+    get: () => mutex.exclusive(read),
     effectiveT3Url: () =>
-      enqueue(async () => {
+      mutex.exclusive(async () => {
         const current = await read();
         return current.t3Url || fallbackUrl;
       }),
     save: (input) =>
-      enqueue(async () => {
+      mutex.exclusive(async () => {
         const current = await read();
         const next = normalizeSettings(input, current);
         cache = next;
